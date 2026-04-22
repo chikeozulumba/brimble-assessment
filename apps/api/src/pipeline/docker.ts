@@ -1,0 +1,82 @@
+import Dockerode from 'dockerode';
+import { broker } from '../logs/broker.js';
+
+const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
+
+export interface RunResult {
+  containerId: string;
+  internalIp: string;
+  port: number;
+}
+
+export async function runContainer(
+  deploymentId: string,
+  imageTag: string,
+  slug: string,
+  network: string,
+): Promise<RunResult> {
+  await broker.publish(deploymentId, 'system', `Starting container for image ${imageTag}`);
+
+  const container = await docker.createContainer({
+    Image: imageTag,
+    Labels: { 'brimble.slug': slug },
+    HostConfig: {
+      NetworkMode: network,
+    },
+    Env: ['PORT=3000'],
+  });
+
+  await container.start();
+
+  const info = await container.inspect();
+  const networks = info.NetworkSettings.Networks;
+  const networkInfo = networks[network] ?? Object.values(networks)[0];
+  const internalIp = networkInfo?.IPAddress ?? '';
+
+  // Detect the exposed port from image config
+  const exposedPorts = info.Config.ExposedPorts ?? {};
+  const portKey = Object.keys(exposedPorts)[0] ?? '3000/tcp';
+  const port = parseInt(portKey.split('/')[0], 10);
+
+  await broker.publish(deploymentId, 'system', `Container ${container.id.slice(0, 12)} running at ${internalIp}:${port}`);
+
+  // Tail container logs to broker (best-effort)
+  tailLogs(deploymentId, container).catch(() => {});
+
+  return { containerId: container.id, internalIp, port };
+}
+
+async function tailLogs(deploymentId: string, container: Dockerode.Container) {
+  const logStream = await container.logs({
+    follow: true,
+    stdout: true,
+    stderr: true,
+    timestamps: false,
+  });
+
+  container.modem.demuxStream(
+    logStream as unknown as NodeJS.ReadableStream,
+    {
+      write: (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n').filter(Boolean);
+        for (const line of lines) broker.publish(deploymentId, 'stdout', line);
+      },
+    } as unknown as NodeJS.WritableStream,
+    {
+      write: (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n').filter(Boolean);
+        for (const line of lines) broker.publish(deploymentId, 'stderr', line);
+      },
+    } as unknown as NodeJS.WritableStream,
+  );
+}
+
+export async function stopAndRemoveContainer(containerId: string) {
+  try {
+    const container = docker.getContainer(containerId);
+    await container.stop({ t: 5 });
+    await container.remove();
+  } catch (err: any) {
+    if (err?.statusCode !== 404) throw err;
+  }
+}

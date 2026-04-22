@@ -1,0 +1,89 @@
+# Architecture
+
+## Overview
+
+Three long-running services communicate over a shared Docker network (`brimble_apps`), plus Postgres for persistent state.
+
+```
+Browser
+  │
+  ▼
+Caddy :8080                  (single ingress)
+  ├── /api/*    → api:3000
+  ├── /apps/*   → deployed containers (dynamic routes via admin API)
+  └── /*        → web:5173
+```
+
+## Services
+
+### `caddy` — Ingress
+- Caddy 2 with admin API enabled on port 2019
+- Bootstrap `Caddyfile` defines static routes for `/api` and `/`
+- At runtime, the `api` service adds `/apps/<slug>/*` routes via `POST /config/apps/http/servers/srv0/routes`
+- All deployed app traffic passes through Caddy; containers never expose ports to the host
+
+### `api` — Backend (Node 20 + Hono)
+- Receives deploy requests, orchestrates the pipeline, streams logs over SSE
+- Mounts `/var/run/docker.sock` so it can drive the host Docker daemon
+- Pipeline state machine: `pending → building → deploying → running | failed`
+- In-memory `LogBroker` (EventEmitter per deployment) fans out to SSE subscribers and writes to Postgres
+
+### `web` — Frontend (Vite + React)
+- Single-page app with TanStack Router (search param `?deployment=<id>` drives log panel)
+- TanStack Query polls deployments list every 3s as safety net
+- `EventSource` connects to `/api/deployments/:id/logs/stream` for live logs
+- Served by Vite dev server in Docker (the only hand-written Dockerfile for our own apps)
+
+### `db` — Postgres 16
+- Two tables: `deployments` and `deployment_logs`
+- Drizzle ORM with migrations applied at API container startup
+
+## Pipeline Detail
+
+```
+POST /api/deployments
+  │
+  └─ insert row (status: pending)
+  └─ return 201 immediately
+  └─ runPipeline() [detached async]
+       │
+       ├─ simple-git clone → /tmp/brimble/<id>/src
+       │    ↳ logs → broker → Postgres + SSE
+       │
+       ├─ railpack build /tmp/brimble/<id>/src --name brimble-<slug>:latest
+       │    ↳ stdout/stderr piped → broker → Postgres + SSE
+       │
+       ├─ dockerode.createContainer + start
+       │    NetworkMode: brimble_apps (same network as Caddy)
+       │
+       ├─ caddy admin API: PUT routes with /apps/<slug>/* matcher
+       │
+       └─ status → running, publicUrl stored
+```
+
+## Log Streaming (SSE)
+
+```
+GET /api/deployments/:id/logs/stream
+  │
+  ├─ SELECT * FROM deployment_logs WHERE deployment_id = :id ORDER BY id
+  │   → replay as SSE `event: log` frames
+  │
+  └─ broker.subscribe(id)
+      ↳ live `log` / `status` events forwarded to SSE stream
+      ↳ `done` event closes the stream
+```
+
+A client that connects mid-build receives all historical logs first, then seamlessly transitions to live events. A client that connects after the build finishes receives the full log history.
+
+## Key Decisions
+
+**TanStack over Next.js** — the spec required TanStack Router explicitly; Next would add SSR complexity with no benefit for a single-page deploy tool.
+
+**Hono over Express/Fastify** — `streamSSE` helper handles SSE keepalive and abort correctly out of the box; zero boilerplate for the streaming case.
+
+**Path routing not subdomains** — subdomains require DNS or `/etc/hosts` changes; `/apps/<slug>/` works on localhost with no configuration. Trade-off: apps that use absolute paths internally break, but sample apps don't.
+
+**No queue** — single-process EventEmitter is sufficient; adds no operational overhead, no serialization, no external dependency. Redis or BullMQ would be the next step if concurrency or durability became requirements.
+
+**No Redis** — log history lives in Postgres; in-process emitter handles fan-out. Works because the API is a single replica.

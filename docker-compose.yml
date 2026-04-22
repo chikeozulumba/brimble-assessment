@@ -1,0 +1,61 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "8080:80"
+      - "2019:2019"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [brimble_apps]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://brimble:brimble@db:5432/brimble
+      CADDY_ADMIN_URL: http://caddy:2019
+      APPS_NETWORK: brimble_apps
+      PUBLIC_BASE_URL: http://localhost:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - brimble_work:/tmp/brimble
+    depends_on:
+      db:
+        condition: service_healthy
+      caddy:
+        condition: service_started
+    networks: [brimble_apps]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    networks: [brimble_apps]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: brimble
+      POSTGRES_PASSWORD: brimble
+      POSTGRES_DB: brimble
+    volumes:
+      - brimble_db:/var/lib/postgresql/data
+    networks: [brimble_apps]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brimble"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  brimble_apps:
+    name: brimble_apps
+
+volumes:
+  caddy_data:
+  caddy_config:
+  brimble_db:
+  brimble_work:

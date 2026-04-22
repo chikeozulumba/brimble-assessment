@@ -1,0 +1,15 @@
+{
+  admin 0.0.0.0:2019
+}
+
+:80 {
+  handle /api/* {
+    reverse_proxy api:3000
+  }
+  handle /apps/* {
+    respond "deployment not found" 404
+  }
+  handle {
+    reverse_proxy web:5173
+  }
+}
