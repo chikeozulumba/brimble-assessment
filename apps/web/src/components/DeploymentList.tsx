@@ -1,444 +1,461 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  BatchResult,
-  Deployment,
-  useBatchDeleteDeployments,
-  useBatchStopDeployments,
-  useDeleteDeployment,
-  useDeployments,
-  useRedeployDeployment,
-  useStopDeployment,
+  BatchResult, Deployment,
+  useBatchDeleteDeployments, useBatchStopDeployments,
+  useDeleteDeployment, useDeployments,
+  useRedeployDeployment, useStopDeployment,
 } from "../api/client";
 import { ConfirmModal } from "./ConfirmModal";
 import { LogStream } from "./LogStream";
+
+/* ── Status maps ───────────────────────────────────────────────────── */
+
+const S_COLOR: Record<string, string> = {
+  pending:   "#818cf8",
+  building:  "#fbbf24",
+  deploying: "#38bdf8",
+  running:   "#3ddc84",
+  failed:    "#fb7185",
+  stopped:   "#2e2e48",
+};
+
+const S_ACTIVE = new Set(["pending", "building", "deploying", "running"]);
+
+const ALL_STATUSES = ["pending", "building", "deploying", "running", "failed", "stopped"] as const;
+
+/* ── Types ─────────────────────────────────────────────────────────── */
 
 type PendingAction =
   | { type: "stop" | "delete"; deploymentId: string }
   | { type: "batch-stop" | "batch-delete"; ids: string[] };
 
-const statusColors: Record<string, string> = {
-  pending: "bg-gray-400",
-  building: "bg-yellow-400",
-  deploying: "bg-blue-400",
-  running: "bg-green-500",
-  failed: "bg-red-500",
-  stopped: "bg-gray-500",
-};
+/* ── Small components ──────────────────────────────────────────────── */
 
-const ALL_STATUSES = [
-  "pending",
-  "building",
-  "deploying",
-  "running",
-  "failed",
-  "stopped",
-] as const;
-
-interface Props {
-  initialExpandId?: string;
+function Led({ status }: { status: string }) {
+  const color = S_COLOR[status] ?? "#3d3d58";
+  const pulse = S_ACTIVE.has(status) && status !== "stopped";
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full shrink-0 ${pulse ? "animate-led-pulse" : ""}`}
+      style={{ backgroundColor: color, boxShadow: pulse ? `0 0 6px ${color}` : undefined }}
+    />
+  );
 }
 
-function InfoRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function StatusBadge({ status }: { status: string }) {
+  const color = S_COLOR[status] ?? "#3d3d58";
   return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500 mb-0.5">{label}</dt>
-      <dd className="text-xs text-gray-800 break-all">{children}</dd>
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-medium"
+      style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}
+    >
+      <Led status={status} />
+      {status}
+    </span>
+  );
+}
+
+function Btn({
+  onClick, disabled, tone = "ghost", children,
+}: { onClick: () => void; disabled?: boolean; tone?: "ghost" | "warn" | "danger"; children: React.ReactNode }) {
+  const styles = {
+    ghost:  { bg: "var(--raised-2)", color: "var(--text-2)", border: "var(--border-2)", hover: "var(--raised)" },
+    warn:   { bg: "rgba(251,191,36,0.08)", color: "#fbbf24", border: "rgba(251,191,36,0.2)", hover: "rgba(251,191,36,0.14)" },
+    danger: { bg: "rgba(251,113,133,0.08)", color: "#fb7185", border: "rgba(251,113,133,0.2)", hover: "rgba(251,113,133,0.14)" },
+  }[tone];
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-colors disabled:opacity-30"
+      style={{ background: styles.bg, color: styles.color, border: `1px solid ${styles.border}` }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = styles.hover; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = styles.bg; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b" style={{ borderColor: "var(--border)" }}>
+      <dt className="w-20 text-[11px] font-mono shrink-0 pt-px" style={{ color: "var(--text-2)" }}>{label}</dt>
+      <dd className="text-[11px] font-mono break-all leading-4" style={{ color: "var(--text)" }}>{children}</dd>
     </div>
   );
 }
 
-function batchToast(action: "stopped" | "deleted", result: BatchResult) {
-  if (result.failed === 0) {
-    toast.success(`${result.succeeded} deployment${result.succeeded !== 1 ? "s" : ""} ${action}`);
-  } else {
-    toast.warning(
-      `${result.succeeded} ${action}, ${result.failed} failed`,
-      { description: "Some deployments could not be processed." },
-    );
-  }
+function batchToast(action: "stopped" | "deleted", r: BatchResult) {
+  const n = r.succeeded;
+  r.failed === 0
+    ? toast.success(`${n} deployment${n !== 1 ? "s" : ""} ${action}`)
+    : toast.warning(`${n} ${action}, ${r.failed} failed`, { description: "Some operations did not complete." });
 }
 
-export function DeploymentList({ initialExpandId }: Props) {
+/* ── Main ──────────────────────────────────────────────────────────── */
+
+export function DeploymentList({ initialExpandId }: { initialExpandId?: string }) {
   const { data: deployments, isLoading } = useDeployments();
-  const stopDep = useStopDeployment();
-  const deleteDep = useDeleteDeployment();
-  const redeploy = useRedeployDeployment();
-  const batchStop = useBatchStopDeployments();
+  const stopDep     = useStopDeployment();
+  const deleteDep   = useDeleteDeployment();
+  const redeploy    = useRedeployDeployment();
+  const batchStop   = useBatchStopDeployments();
   const batchDelete = useBatchDeleteDeployments();
 
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(initialExpandId ?? null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [statusFilter,  setStatusFilter]  = useState<string | null>(null);
+  const [expandedId,    setExpandedId]    = useState<string | null>(initialExpandId ?? null);
+  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
-  useEffect(() => {
-    if (initialExpandId) setExpandedId(initialExpandId);
-  }, [initialExpandId]);
+  useEffect(() => { if (initialExpandId) setExpandedId(initialExpandId); }, [initialExpandId]);
 
-  if (isLoading) return <p className="text-sm text-gray-500">Loading…</p>;
-  if (!deployments?.length)
-    return <p className="text-sm text-gray-500">No deployments yet.</p>;
+  /* Loading skeleton */
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 rounded-lg border animate-pulse" style={{ background: "var(--surface)", borderColor: "var(--border)" }} />
+        ))}
+      </div>
+    );
+  }
 
-  const filtered = statusFilter
-    ? deployments.filter((d: Deployment) => d.status === statusFilter)
-    : deployments;
+  /* Empty state */
+  if (!deployments?.length) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-20 rounded-lg border border-dashed"
+        style={{ borderColor: "var(--border-2)", background: "var(--surface)" }}
+      >
+        <span className="text-2xl mb-3 opacity-30">⬡</span>
+        <p className="text-sm font-mono" style={{ color: "var(--text-2)" }}>no deployments yet</p>
+        <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>deploy a repository to get started</p>
+      </div>
+    );
+  }
 
-  const filteredIds = filtered.map((d: Deployment) => d.id);
-  const allSelected = filteredIds.length > 0 && filteredIds.every((id: string) => selectedIds.has(id));
-  const someSelected = filteredIds.some((id: string) => selectedIds.has(id));
+  const filtered      = statusFilter ? deployments.filter((d: Deployment) => d.status === statusFilter) : deployments;
+  const filteredIds   = filtered.map((d: Deployment) => d.id);
+  const allSelected   = filteredIds.length > 0 && filteredIds.every((id: string) => selectedIds.has(id));
+  const someSelected  = filteredIds.some((id: string) => selectedIds.has(id));
   const selectedInView = filteredIds.filter((id: string) => selectedIds.has(id));
 
-  const toggle = (id: string) =>
-    setExpandedId((prev) => (prev === id ? null : id));
+  const toggle        = (id: string) => setExpandedId((p) => (p === id ? null : id));
+  const toggleSelect  = (id: string) => setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll     = () => setSelectedIds(allSelected ? new Set() : new Set(filteredIds));
+  const clearSel      = () => setSelectedIds(new Set());
 
-  const toggleSelect = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-
-  const toggleSelectAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(filteredIds));
-
-  const clearSelection = () => setSelectedIds(new Set());
-
-  // Confirm modal helpers
-  const modalConfig = pendingAction
+  /* Confirm modal config */
+  type ModalCfg = { title: string; message: string; confirmLabel: string; danger?: boolean };
+  const modalCfg: ModalCfg | null = pendingAction
     ? pendingAction.type === "stop"
-      ? {
-          title: "Stop deployment?",
-          message: "This will stop the running container and remove its Caddy route. The record will remain.",
-          confirmLabel: "Stop",
-          confirmClassName: "bg-orange-500 hover:bg-orange-600 text-white",
-        }
+      ? { title: "Stop deployment", message: "Container will be stopped and its route removed. Record stays.", confirmLabel: "Stop", danger: false }
       : pendingAction.type === "delete"
-      ? {
-          title: "Delete deployment?",
-          message: "This will permanently delete the deployment and all its logs. This cannot be undone.",
-          confirmLabel: "Delete",
-          confirmClassName: "bg-red-600 hover:bg-red-700 text-white",
-        }
+      ? { title: "Delete deployment", message: "The deployment and all logs will be permanently removed.", confirmLabel: "Delete", danger: true }
       : pendingAction.type === "batch-stop"
-      ? {
-          title: `Stop ${(pendingAction as { ids: string[] }).ids.length} deployment${(pendingAction as { ids: string[] }).ids.length !== 1 ? "s" : ""}?`,
-          message: "All selected deployments will be stopped. Their records will remain.",
-          confirmLabel: "Stop All",
-          confirmClassName: "bg-orange-500 hover:bg-orange-600 text-white",
-        }
-      : {
-          title: `Delete ${(pendingAction as { ids: string[] }).ids.length} deployment${(pendingAction as { ids: string[] }).ids.length !== 1 ? "s" : ""}?`,
-          message: "All selected deployments and their logs will be permanently deleted. This cannot be undone.",
-          confirmLabel: "Delete All",
-          confirmClassName: "bg-red-600 hover:bg-red-700 text-white",
-        }
+      ? { title: `Stop ${(pendingAction as any).ids.length} deployments`, message: "All selected containers will be stopped.", confirmLabel: "Stop all", danger: false }
+      : { title: `Delete ${(pendingAction as any).ids.length} deployments`, message: "All selected deployments and logs will be permanently deleted.", confirmLabel: "Delete all", danger: true }
     : null;
 
   const handleConfirm = () => {
     if (!pendingAction) return;
-    const action = pendingAction;
+    const a = pendingAction;
     setPendingAction(null);
-
-    if (action.type === "stop") {
-      stopDep.mutate(action.deploymentId, {
-        onSuccess: () => toast.success("Deployment stopped"),
-      });
-    } else if (action.type === "delete") {
-      deleteDep.mutate(action.deploymentId, {
-        onSuccess: () => toast.success("Deployment deleted"),
-      });
-    } else if (action.type === "batch-stop") {
-      batchStop.mutate(action.ids, {
-        onSuccess: (result) => { batchToast("stopped", result); clearSelection(); },
-        onError: (err) => toast.error(err.message),
-      });
-    } else {
-      batchDelete.mutate(action.ids, {
-        onSuccess: (result) => { batchToast("deleted", result); clearSelection(); },
-        onError: (err) => toast.error(err.message),
-      });
-    }
+    if (a.type === "stop")         stopDep.mutate(a.deploymentId,    { onSuccess: () => toast.success("Deployment stopped") });
+    else if (a.type === "delete")  deleteDep.mutate(a.deploymentId,  { onSuccess: () => toast.success("Deployment deleted") });
+    else if (a.type === "batch-stop")
+      batchStop.mutate(a.ids, { onSuccess: (r) => { batchToast("stopped", r); clearSel(); }, onError: (e) => toast.error(e.message) });
+    else
+      batchDelete.mutate((a as any).ids, { onSuccess: (r) => { batchToast("deleted", r); clearSel(); }, onError: (e) => toast.error(e.message) });
   };
 
   const isBatchBusy = batchStop.isPending || batchDelete.isPending;
 
   return (
-    <div>
-      <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-        Deployments ({filtered.length})
-      </h2>
+    <div className="space-y-3">
 
-      {/* Status filter pills */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      {/* ── Toolbar row ─────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-mono mr-1" style={{ color: "var(--text-2)" }}>filter</span>
         <button
           onClick={() => setStatusFilter(null)}
-          className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-            statusFilter === null
-              ? "bg-gray-800 text-white border-gray-800"
-              : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
-          }`}
+          className="px-2.5 py-0.5 rounded text-[11px] font-mono transition-colors"
+          style={{
+            background: statusFilter === null ? "var(--accent-dim)" : "var(--raised)",
+            color: statusFilter === null ? "var(--accent)" : "var(--text-2)",
+            border: `1px solid ${statusFilter === null ? "var(--accent-glow)" : "var(--border)"}`,
+          }}
         >
-          All
+          all
         </button>
-        {ALL_STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(statusFilter === s ? null : s)}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-full border transition-colors ${
-              statusFilter === s
-                ? "bg-gray-800 text-white border-gray-800"
-                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
-            }`}
-          >
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColors[s]}`} />
-            {s}
-          </button>
-        ))}
+        {ALL_STATUSES.map((s) => {
+          const active = statusFilter === s;
+          const c = S_COLOR[s];
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(active ? null : s)}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-mono transition-colors"
+              style={{
+                background: active ? `${c}18` : "var(--raised)",
+                color: active ? c : "var(--text-2)",
+                border: `1px solid ${active ? `${c}40` : "var(--border)"}`,
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: c }} />
+              {s}
+            </button>
+          );
+        })}
+
+        <span className="ml-auto text-[11px] font-mono" style={{ color: "var(--text-3)" }}>
+          {filtered.length} / {deployments.length}
+        </span>
       </div>
 
-      {/* Batch action bar */}
+      {/* ── Batch action bar ────────────────────────────────────────── */}
       {someSelected && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-gray-900 text-white rounded-lg text-xs">
-          <span className="font-medium mr-1">
+        <div
+          className="animate-slide-down flex items-center gap-2 px-4 py-2.5 rounded-lg border"
+          style={{ background: "var(--raised-2)", borderColor: "var(--accent-glow)" }}
+        >
+          <Led status="running" />
+          <span className="text-xs font-mono" style={{ color: "var(--accent)" }}>
             {selectedInView.length} selected
           </span>
+          <div className="w-px h-3.5 mx-1" style={{ background: "var(--border-2)" }} />
+          <Btn tone="warn" onClick={() => setPendingAction({ type: "batch-stop", ids: selectedInView })} disabled={isBatchBusy}>
+            stop selected
+          </Btn>
+          <Btn tone="danger" onClick={() => setPendingAction({ type: "batch-delete", ids: selectedInView })} disabled={isBatchBusy}>
+            delete selected
+          </Btn>
           <button
-            onClick={() => setPendingAction({ type: "batch-stop", ids: selectedInView })}
-            disabled={isBatchBusy}
-            className="px-3 py-1 rounded bg-orange-500 hover:bg-orange-400 disabled:opacity-50 font-medium"
+            onClick={clearSel}
+            className="ml-auto text-[11px] font-mono transition-colors"
+            style={{ color: "var(--text-2)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-2)"; }}
           >
-            Stop Selected
-          </button>
-          <button
-            onClick={() => setPendingAction({ type: "batch-delete", ids: selectedInView })}
-            disabled={isBatchBusy}
-            className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 disabled:opacity-50 font-medium"
-          >
-            Delete Selected
-          </button>
-          <button
-            onClick={clearSelection}
-            className="ml-auto px-2 py-1 rounded text-gray-400 hover:text-white"
-          >
-            Clear
+            ✕ clear
           </button>
         </div>
       )}
 
       {filtered.length === 0 && (
-        <p className="text-sm text-gray-400 py-4 text-center">
-          No deployments match this filter.
+        <p className="text-xs font-mono text-center py-8" style={{ color: "var(--text-3)" }}>
+          no deployments match this filter
         </p>
       )}
 
-      {/* Accordion list */}
-      <div className="space-y-2">
-        {/* Select-all row */}
-        {filtered.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-1.5">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-              onChange={toggleSelectAll}
-              className="w-3.5 h-3.5 rounded accent-gray-800 cursor-pointer"
-            />
-            <span className="text-xs text-gray-400">Select all</span>
-          </div>
-        )}
+      {/* ── Select-all ──────────────────────────────────────────────── */}
+      {filtered.length > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+            onChange={toggleAll}
+            className="w-3.5 h-3.5 cursor-pointer rounded accent-[#3ddc84]"
+          />
+          <span className="text-[11px] font-mono select-none" style={{ color: "var(--text-3)" }}>
+            select all
+          </span>
+        </div>
+      )}
 
-        {filtered.map((dep: Deployment) => {
+      {/* ── Deployment cards ────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        {filtered.map((dep: Deployment, idx: number) => {
           const isExpanded = expandedId === dep.id;
-          const isRunning = dep.status === "running";
-          const isStopped = dep.status === "stopped";
+          const isStopped  = dep.status === "stopped";
           const isSelected = selectedIds.has(dep.id);
+          const sColor     = S_COLOR[dep.status] ?? "#3d3d58";
 
           return (
             <div
               key={dep.id}
-              className={`rounded-lg border overflow-hidden transition-colors ${
-                isSelected
-                  ? "bg-blue-50 border-blue-200"
-                  : "bg-white border-gray-200"
-              }`}
+              className="card-enter rounded-lg border overflow-hidden transition-shadow"
+              style={{
+                animationDelay: `${idx * 25}ms`,
+                background: isSelected ? "var(--raised)" : "var(--surface)",
+                borderColor: isSelected ? "var(--accent-glow)" : "var(--border)",
+                borderLeftColor: sColor,
+                borderLeftWidth: "3px",
+              }}
             >
-              {/* Summary row */}
+              {/* ── Summary row ─────────────────────────────────────── */}
               <div
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 select-none"
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none group"
                 onClick={() => toggle(dep.id)}
               >
-                {/* Checkbox — does not toggle accordion */}
+                {/* Checkbox */}
                 <div onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelect(dep.id)}
-                    className="w-3.5 h-3.5 rounded accent-gray-800 cursor-pointer"
+                    className="w-3.5 h-3.5 cursor-pointer rounded accent-[#3ddc84]"
                   />
                 </div>
 
-                <span className="text-gray-400 text-xs w-3 shrink-0">
-                  {isExpanded ? "▼" : "▶"}
-                </span>
+                {/* Chevron */}
+                <svg
+                  className="w-3 h-3 shrink-0 transition-transform duration-300"
+                  style={{
+                    transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    color: isExpanded ? "var(--accent)" : "var(--text-3)",
+                  }}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
 
-                <span className="flex items-center gap-1.5 shrink-0">
-                  <span
-                    className={`inline-block w-2 h-2 rounded-full ${
-                      statusColors[dep.status] ?? "bg-gray-400"
-                    } ${isRunning ? "animate-pulse" : ""}`}
-                  />
-                  <span className="text-xs font-medium text-gray-700 w-16">
-                    {dep.status}
-                  </span>
-                </span>
+                {/* Status + slug */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <Led status={dep.status} />
+                  <span className="text-[11px] font-mono w-[72px]" style={{ color: sColor }}>{dep.status}</span>
+                </div>
 
-                <span className="font-mono text-xs font-semibold text-gray-900 shrink-0">
+                <span
+                  className="font-mono text-xs font-semibold shrink-0"
+                  style={{ color: "var(--text)" }}
+                >
                   {dep.slug}
                 </span>
 
                 <span
-                  className="text-xs text-gray-400 truncate min-w-0 flex-1"
+                  className="text-[11px] font-mono truncate min-w-0 flex-1"
+                  style={{ color: "var(--text-2)" }}
                   title={dep.source}
                 >
-                  {dep.source}
+                  {dep.source.replace(/^https?:\/\/(www\.)?/, "")}
                 </span>
 
-                <span className="text-xs text-gray-400 whitespace-nowrap shrink-0 hidden sm:block">
-                  {new Date(dep.createdAt).toLocaleString()}
+                <span className="text-[11px] font-mono whitespace-nowrap shrink-0 hidden lg:block" style={{ color: "var(--text-3)" }}>
+                  {new Date(dep.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  {" "}
+                  {new Date(dep.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                 </span>
 
-                {/* Row actions — clicks don't propagate to the toggle */}
-                <div
-                  className="flex gap-1 shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() =>
-                      redeploy.mutate(dep.id, {
-                        onSuccess: (newDep) =>
-                          toast.success("Redeployment started", {
-                            description: newDep.slug,
-                          }),
-                      })
-                    }
-                    disabled={redeploy.isPending}
-                    className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
-                  >
-                    Redeploy
-                  </button>
-                  <button
-                    onClick={() =>
-                      setPendingAction({ type: "stop", deploymentId: dep.id })
-                    }
-                    disabled={stopDep.isPending || isStopped}
-                    className="px-2 py-1 text-xs bg-orange-50 text-orange-600 rounded hover:bg-orange-100 disabled:opacity-40"
-                  >
-                    Stop
-                  </button>
-                  <button
-                    onClick={() =>
-                      setPendingAction({ type: "delete", deploymentId: dep.id })
-                    }
-                    disabled={deleteDep.isPending}
-                    className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
+                {/* Actions */}
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Btn tone="ghost" disabled={redeploy.isPending}
+                    onClick={() => redeploy.mutate(dep.id, { onSuccess: (d) => toast.success("Redeployment started", { description: d.slug }) })}>
+                    redeploy
+                  </Btn>
+                  <Btn tone="warn" disabled={stopDep.isPending || isStopped}
+                    onClick={() => setPendingAction({ type: "stop", deploymentId: dep.id })}>
+                    stop
+                  </Btn>
+                  <Btn tone="danger" disabled={deleteDep.isPending}
+                    onClick={() => setPendingAction({ type: "delete", deploymentId: dep.id })}>
+                    delete
+                  </Btn>
                 </div>
               </div>
 
-              {/* Expanded content */}
-              {isExpanded && (
-                <div className="border-t border-gray-200">
-                  <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                      Deployment Info
-                    </p>
-                    <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
-                      <InfoRow label="Slug">
-                        <span className="font-mono">{dep.slug}</span>
-                      </InfoRow>
-                      <InfoRow label="Status">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className={`inline-block w-2 h-2 rounded-full ${
-                              statusColors[dep.status] ?? "bg-gray-400"
-                            }`}
-                          />
-                          {dep.status}
-                        </span>
-                      </InfoRow>
-                      <InfoRow label="Created">
-                        {new Date(dep.createdAt).toLocaleString()}
-                      </InfoRow>
-                      <InfoRow label="Source">
-                        <span className="font-mono">{dep.source}</span>
-                      </InfoRow>
-                      <InfoRow label="Image">
-                        <span className="font-mono">{dep.imageTag ?? "—"}</span>
-                      </InfoRow>
-                      <InfoRow label="Updated">
-                        {new Date(dep.updatedAt).toLocaleString()}
-                      </InfoRow>
-                      <InfoRow label="URL">
-                        {dep.publicUrl ? (
-                          <a
-                            href={dep.publicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {dep.publicUrl}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </InfoRow>
-                      {dep.errorMessage && (
-                        <InfoRow label="Error">
-                          <span className="text-red-600">{dep.errorMessage}</span>
-                        </InfoRow>
-                      )}
-                      {dep.envVars && Object.keys(dep.envVars).length > 0 && (
-                        <div className="col-span-2 sm:col-span-3">
-                          <dt className="text-xs font-medium text-gray-500 mb-1">
-                            Environment Variables
-                          </dt>
-                          <dd className="space-y-0.5">
-                            {Object.entries(dep.envVars).map(([k, v]) => (
-                              <div key={k} className="font-mono text-xs">
-                                <span className="text-gray-800">{k}</span>
-                                <span className="text-gray-400">=</span>
-                                <span className="text-gray-600">{v}</span>
-                              </div>
-                            ))}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
-                  </div>
+              {/* ── Accordion body ───────────────────────────────────── */}
+              <div className={`collapsible ${isExpanded ? "open" : ""}`}>
+                <div>
+                  <div className="border-t" style={{ borderColor: "var(--border)" }}>
+                    <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr]">
 
-                  <div className="px-5 py-4">
-                    <LogStream deploymentId={dep.id} />
+                      {/* Left — properties ──────────────────────────── */}
+                      <div
+                        className="px-5 py-4 border-b lg:border-b-0 lg:border-r"
+                        style={{ borderColor: "var(--border)", background: "var(--raised)" }}
+                      >
+                        <p className="text-[10px] font-mono font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-3)" }}>
+                          properties
+                        </p>
+                        <dl className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          <PropRow label="id">
+                            <span style={{ color: "var(--text-2)" }}>{dep.id}</span>
+                          </PropRow>
+                          <PropRow label="status">
+                            <StatusBadge status={dep.status} />
+                          </PropRow>
+                          <PropRow label="source">
+                            <a
+                              href={dep.source} target="_blank" rel="noopener noreferrer"
+                              className="hover:underline"
+                              style={{ color: "var(--accent)" }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {dep.source.replace(/^https?:\/\/(www\.)?/, "")}
+                            </a>
+                          </PropRow>
+                          {dep.publicUrl && (
+                            <PropRow label="url">
+                              <a href={dep.publicUrl} target="_blank" rel="noopener noreferrer"
+                                className="hover:underline" style={{ color: "var(--s-deploying)" }}
+                                onClick={(e) => e.stopPropagation()}>
+                                {dep.publicUrl}
+                              </a>
+                            </PropRow>
+                          )}
+                          <PropRow label="image">
+                            <span style={{ color: "var(--text-2)" }}>{dep.imageTag ?? "—"}</span>
+                          </PropRow>
+                          <PropRow label="created">
+                            <span style={{ color: "var(--text-2)" }}>{new Date(dep.createdAt).toLocaleString()}</span>
+                          </PropRow>
+                          <PropRow label="updated">
+                            <span style={{ color: "var(--text-2)" }}>{new Date(dep.updatedAt).toLocaleString()}</span>
+                          </PropRow>
+                          {dep.errorMessage && (
+                            <PropRow label="error">
+                              <span style={{ color: "var(--s-failed)" }}>{dep.errorMessage}</span>
+                            </PropRow>
+                          )}
+                        </dl>
+
+                        {/* Env vars */}
+                        {dep.envVars && Object.keys(dep.envVars).length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-3)" }}>
+                              env vars
+                            </p>
+                            <div
+                              className="rounded px-3 py-2 space-y-1 font-mono text-[11px]"
+                              style={{ background: "var(--base)", border: "1px solid var(--border)" }}
+                            >
+                              {Object.entries(dep.envVars).map(([k, v]) => (
+                                <div key={k} className="flex gap-1.5">
+                                  <span style={{ color: "var(--s-pending)" }}>{k}</span>
+                                  <span style={{ color: "var(--text-3)" }}>=</span>
+                                  <span style={{ color: "var(--s-running)" }}>{v}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right — logs ───────────────────────────────── */}
+                      <div className="px-5 py-4">
+                        <LogStream deploymentId={dep.id} />
+                      </div>
+
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {pendingAction && modalConfig && (
+      {/* Confirm modal */}
+      {pendingAction && modalCfg && (
         <ConfirmModal
-          {...modalConfig}
+          title={modalCfg.title}
+          message={modalCfg.message}
+          confirmLabel={modalCfg.confirmLabel}
+          danger={modalCfg.danger}
           onConfirm={handleConfirm}
           onCancel={() => setPendingAction(null)}
         />

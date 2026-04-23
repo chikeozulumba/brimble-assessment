@@ -1,3 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Design tokens ────────────────────────────────────────────────── */
+:root {
+  --base:         #07070e;
+  --surface:      #0d0d1c;
+  --raised:       #111128;
+  --raised-2:     #161632;
+  --border:       #1a1a30;
+  --border-2:     #252545;
+  --accent:       #3ddc84;
+  --accent-dim:   rgba(61, 220, 132, 0.10);
+  --accent-glow:  rgba(61, 220, 132, 0.22);
+  --text:         #c8c8e8;
+  --text-2:       #58587a;
+  --text-3:       #30304a;
+
+  --s-pending:    #818cf8;
+  --s-building:   #fbbf24;
+  --s-deploying:  #38bdf8;
+  --s-running:    #3ddc84;
+  --s-failed:     #fb7185;
+  --s-stopped:    #2e2e48;
+
+  --radius:       6px;
+  --radius-lg:    10px;
+}
+
+/* ── Base reset ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-font-smoothing: antialiased; }
+
+body {
+  margin: 0;
+  background: var(--base);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* ── Dot-grid background ──────────────────────────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, var(--border-2) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Accordion ────────────────────────────────────────────────────── */
+.collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.30s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.collapsible.open { grid-template-rows: 1fr; }
+.collapsible > * { overflow: hidden; }
+
+/* ── Card stagger entrance ────────────────────────────────────────── */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-enter {
+  animation: card-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Terminal scanline overlay ────────────────────────────────────── */
+.terminal-scan::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-2); }
+
+/* ── Focus ring ───────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Selection ────────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-dim);
+  color: var(--accent);
+}

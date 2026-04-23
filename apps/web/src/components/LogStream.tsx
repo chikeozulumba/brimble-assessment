@@ -6,25 +6,30 @@ interface Props {
   deploymentId: string;
 }
 
-const streamColors: Record<string, string> = {
-  stdout: 'text-green-300',
-  stderr: 'text-red-400',
-  system: 'text-blue-300',
+const STREAM_COLOR: Record<string, string> = {
+  stdout: 'var(--s-running)',
+  stderr: 'var(--s-failed)',
+  system: 'var(--s-deploying)',
+};
+
+const STREAM_LABEL: Record<string, string> = {
+  stdout: 'out',
+  stderr: 'err',
+  system: 'sys',
 };
 
 export function LogStream({ deploymentId }: Props) {
   const { data: dep, refetch: refetchDep } = useDeployment(deploymentId);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs]             = useState<LogEntry[]>([]);
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [done, setDone] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [connected, setConnected]   = useState(false);
+  const [done, setDone]             = useState(false);
+  const [showModal, setShowModal]   = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const esRef     = useRef<EventSource | null>(null);
 
   const connect = useCallback(() => {
     esRef.current?.close();
-
     setLogs([]);
     setLiveStatus(null);
     setDone(false);
@@ -34,30 +39,21 @@ export function LogStream({ deploymentId }: Props) {
     esRef.current = es;
 
     es.addEventListener('log', (e) => {
-      const entry: LogEntry = JSON.parse(e.data);
-      setLogs((prev) => [...prev, entry]);
+      setLogs((prev) => [...prev, JSON.parse(e.data)]);
       setConnected(true);
     });
-
     es.addEventListener('status', (e) => {
-      const { status } = JSON.parse(e.data);
-      setLiveStatus(status);
+      setLiveStatus(JSON.parse(e.data).status);
       refetchDep();
     });
-
     es.addEventListener('done', () => {
       setDone(true);
       setConnected(false);
       es.close();
       refetchDep();
     });
-
-    es.onopen = () => setConnected(true);
-
-    es.onerror = () => {
-      setConnected(false);
-      es.close();
-    };
+    es.onopen  = () => setConnected(true);
+    es.onerror = () => { setConnected(false); es.close(); };
   }, [deploymentId, refetchDep]);
 
   useEffect(() => {
@@ -69,7 +65,7 @@ export function LogStream({ deploymentId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  const status = liveStatus ?? dep?.status ?? '…';
+  const status    = liveStatus ?? dep?.status ?? '…';
   const isRunning = status === 'running';
   const streamClosed = done && isRunning;
 
@@ -77,49 +73,78 @@ export function LogStream({ deploymentId }: Props) {
     <div className="flex flex-col h-full">
       {showModal && <LogModal deploymentId={deploymentId} onClose={() => setShowModal(false)} />}
 
+      {/* Toolbar */}
       <div className="flex items-center gap-2 mb-2">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Logs</p>
+        <p className="text-[10px] font-mono font-semibold uppercase tracking-widest" style={{ color: "var(--text-3)" }}>
+          logs
+        </p>
 
         {connected && isRunning && (
-          <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Live
+          <span className="flex items-center gap-1.5 text-[11px] font-mono font-medium" style={{ color: "var(--s-running)" }}>
+            <span
+              className="w-1.5 h-1.5 rounded-full animate-led-pulse"
+              style={{ background: "var(--s-running)", boxShadow: "0 0 4px var(--s-running)" }}
+            />
+            live
           </span>
         )}
-
         {done && !isRunning && (
-          <span className="text-xs text-gray-400">(stream closed)</span>
+          <span className="text-[11px] font-mono" style={{ color: "var(--text-3)" }}>ended</span>
         )}
 
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
           {streamClosed && (
             <button
               onClick={connect}
-              className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+              className="text-[11px] px-2.5 py-1 rounded font-mono transition-colors"
+              style={{ background: "var(--raised-2)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-2)"; }}
             >
-              Reconnect
+              reconnect
             </button>
           )}
           <button
             onClick={() => setShowModal(true)}
-            className="text-xs px-2 py-0.5 rounded bg-gray-800 text-white hover:bg-gray-700"
+            className="text-[11px] px-2.5 py-1 rounded font-mono transition-colors"
+            style={{ background: "var(--raised-2)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-2)"; }}
           >
-            View Full Logs
+            full logs
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-gray-900 rounded p-3 font-mono text-xs leading-5 min-h-[300px] max-h-[500px]">
+      {/* Terminal */}
+      <div
+        className="terminal-scan relative flex-1 overflow-y-auto rounded-lg p-4 font-mono text-[11px] leading-5 min-h-[260px] max-h-[420px]"
+        style={{ background: "var(--base)", border: "1px solid var(--border-2)" }}
+      >
         {logs.length === 0 && !done && (
-          <span className="text-gray-500">Waiting for logs…</span>
+          <div className="flex items-center gap-2" style={{ color: "var(--text-3)" }}>
+            <svg className="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            waiting for logs…
+          </div>
         )}
         {logs.length === 0 && done && (
-          <span className="text-gray-500">No logs recorded.</span>
+          <span style={{ color: "var(--text-3)" }}>no logs recorded.</span>
         )}
         {logs.map((log) => (
-          <div key={log.id} className={streamColors[log.stream] ?? 'text-gray-300'}>
-            <span className="text-gray-600 mr-2">[{log.stream}]</span>
-            {log.line}
+          <div key={log.id} className="flex gap-2 group">
+            <span className="shrink-0 tabular-nums select-none" style={{ color: "var(--text-3)" }}>
+              {new Date(log.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+            <span
+              className="shrink-0 w-7 text-right select-none"
+              style={{ color: STREAM_COLOR[log.stream] ?? "var(--text-2)", opacity: 0.6 }}
+            >
+              {STREAM_LABEL[log.stream] ?? log.stream}
+            </span>
+            <span className="break-all whitespace-pre-wrap" style={{ color: "var(--text)" }}>{log.line}</span>
           </div>
         ))}
         <div ref={bottomRef} />
