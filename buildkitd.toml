@@ -1,0 +1,4 @@
+# Plain HTTP registry on the compose network (distribution/registry:2).
+# Without this, BuildKit tries HTTPS when pushing to registry:5000 and push fails or stalls.
+[registry."registry:5000"]
+  http = true

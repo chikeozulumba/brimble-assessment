@@ -1,5 +1,9 @@
 {
-  admin 0.0.0.0:2019
+  # Listen on all interfaces (api reaches :2019 on the Docker network). Declare origins so
+  # Host/Origin checks allow caddy:2019 and localhost (default for 0.0.0.0 is only 0.0.0.0:2019 → 403).
+  admin 0.0.0.0:2019 {
+    origins caddy:2019 http://caddy:2019 localhost:2019 127.0.0.1:2019
+  }
 }
 
 :80 {

@@ -1,4 +1,38 @@
 services:
+  # Local registry: BuildKit pushes images here (avoids "sending tarball" hang with remote BuildKit).
+  # Port 5000 is exposed to the host so the host Docker daemon can pull via localhost:5000.
+  registry:
+    image: registry:2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks: [brimble_apps]
+    volumes:
+      - registry_data:/var/lib/registry
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5000/v2/"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Railpack needs BuildKit. TCP on the compose network is reliable from inside `api`; `docker-container://`
+  # often fails when the client runs in a container that only has the Docker socket mounted.
+  buildkit:
+    image: moby/buildkit:latest
+    privileged: true
+    restart: unless-stopped
+    command: ["--config", "/etc/buildkit/buildkitd.toml", "--addr", "tcp://0.0.0.0:1234"]
+    volumes:
+      - ./buildkitd.toml:/etc/buildkit/buildkitd.toml:ro
+    networks: [brimble_apps]
+    healthcheck:
+      test: ["CMD", "/usr/bin/buildctl", "--addr", "tcp://127.0.0.1:1234", "debug", "workers"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   caddy:
     image: caddy:2-alpine
     ports:
@@ -19,10 +53,25 @@ services:
       CADDY_ADMIN_URL: http://caddy:2019
       APPS_NETWORK: brimble_apps
       PUBLIC_BASE_URL: http://localhost:8080
+      # Optional: GitHub PAT with repo scope so private github.com URLs can be cloned (non-interactive).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      BUILDKIT_HOST: tcp://buildkit:1234
+      # BuildKit pushes here (compose DNS). Must match buildkitd.toml [registry."…"].
+      REGISTRY_PUSH_HOST: registry:5000
+      # Host Docker pulls from the published registry port (see registry service ports).
+      REGISTRY_RUN_HOST: localhost:5000
+      # Same minor as the railpack binary in the API image Dockerfile.
+      RAILPACK_FRONTEND: ghcr.io/railwayapp/railpack-frontend:v0.23.0
+      # Optional: set to 1 for richer Railpack logs when debugging export/load issues.
+      RAILPACK_VERBOSE: ${RAILPACK_VERBOSE:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - brimble_work:/tmp/brimble
     depends_on:
+      registry:
+        condition: service_healthy
+      buildkit:
+        condition: service_healthy
       db:
         condition: service_healthy
       caddy:
@@ -59,3 +108,4 @@ volumes:
   caddy_config:
   brimble_db:
   brimble_work:
+  registry_data:

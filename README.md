@@ -10,7 +10,7 @@ cd brimble-assessment
 docker compose up --build
 ```
 
-Visit **http://localhost:8080**.
+Visit **[http://localhost:8080](http://localhost:8080)**.
 
 Paste a Git URL (e.g. the `sample-app/` directory pushed to any public repo, or any small Node/Go project) and click **Deploy**. Logs stream live while Railpack builds the image.
 
@@ -32,18 +32,20 @@ api → Caddy admin :2019 (add/remove routes)
 
 All services share the `brimble_apps` Docker network so Caddy can reach deployed containers by IP.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full pipeline walkthrough.
+See `[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)` for the full pipeline walkthrough.
 
 ## Environment Variables
 
 All have working defaults in `docker-compose.yml`. Document only.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DATABASE_URL` | `postgres://brimble:brimble@db:5432/brimble` | Postgres connection string |
-| `CADDY_ADMIN_URL` | `http://caddy:2019` | Caddy admin API base URL |
-| `APPS_NETWORK` | `brimble_apps` | Docker network deployed containers join |
-| `PUBLIC_BASE_URL` | `http://localhost:8080` | Used to build `publicUrl` for each deployment |
+
+| Variable          | Default                                      | Purpose                                       |
+| ----------------- | -------------------------------------------- | --------------------------------------------- |
+| `DATABASE_URL`    | `postgres://brimble:brimble@db:5432/brimble` | Postgres connection string                    |
+| `CADDY_ADMIN_URL` | `http://caddy:2019`                          | Caddy admin API base URL                      |
+| `APPS_NETWORK`    | `brimble_apps`                               | Docker network deployed containers join       |
+| `PUBLIC_BASE_URL` | `http://localhost:8080`                      | Used to build `publicUrl` for each deployment |
+
 
 ## Testing the pipeline
 
@@ -76,18 +78,21 @@ The `sample-app/` in this repo is a minimal Node HTTP server. Push it to a publi
 
 ## Rough time spent
 
-| Phase | Time |
-|---|---|
-| Scaffold + plumbing (phases 0–1) | ~2h |
-| CRUD + pipeline (phases 2–3) | ~3h |
-| SSE streaming (phase 4) | ~1.5h |
-| Docker run + Caddy routing (phase 5) | ~2h |
-| Delete/cleanup + tests (phases 6–7) | ~1.5h |
-| Docs + README | ~1h |
-| **Total** | **~11h** |
+
+| Phase                                | Time     |
+| ------------------------------------ | -------- |
+| Scaffold + plumbing (phases 0–1)     | ~2h      |
+| CRUD + pipeline (phases 2–3)         | ~3h      |
+| SSE streaming (phase 4)              | ~1.5h    |
+| Docker run + Caddy routing (phase 5) | ~2h      |
+| Delete/cleanup + tests (phases 6–7)  | ~1.5h    |
+| Docs + README                        | ~1h      |
+| **Total**                            | **~11h** |
+
 
 ## Links
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Brimble Feedback](docs/BRIMBLE_FEEDBACK.md)
-- Loom: _[to be recorded and linked]_
+- Loom: *[to be recorded and linked]*
+

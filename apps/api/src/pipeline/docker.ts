@@ -3,6 +3,27 @@ import { broker } from '../logs/broker.js';
 
 const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
+/** e.g. localhost:5000/brimble-abc:latest — host Docker must pull after BuildKit push. */
+function looksLikeRegistryImageRef(image: string): boolean {
+  const i = image.indexOf('/');
+  if (i <= 0) return false;
+  const host = image.slice(0, i);
+  return host.includes('.') || host.includes(':');
+}
+
+async function pullImage(deploymentId: string, imageTag: string): Promise<void> {
+  await broker.publish(deploymentId, 'system', `Pulling ${imageTag} into local Docker`);
+  await new Promise<void>((resolve, reject) => {
+    docker.pull(imageTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
+      if (err) return reject(err);
+      docker.modem.followProgress(stream, (err2: Error | null) => {
+        if (err2) reject(err2);
+        else resolve();
+      });
+    });
+  });
+}
+
 export interface RunResult {
   containerId: string;
   internalIp: string;
@@ -16,6 +37,10 @@ export async function runContainer(
   network: string,
 ): Promise<RunResult> {
   await broker.publish(deploymentId, 'system', `Starting container for image ${imageTag}`);
+
+  if (looksLikeRegistryImageRef(imageTag)) {
+    await pullImage(deploymentId, imageTag);
+  }
 
   const container = await docker.createContainer({
     Image: imageTag,

@@ -24,16 +24,16 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     await setStatus(deploymentId, 'building');
     await cloneRepo(deploymentId, source, srcPath);
 
-    // 2. Railpack build
+    // 2. Railpack + BuildKit (returns host-runnable ref, e.g. localhost:5000/brimble-…:latest when using registry push)
     const imageTag = `brimble-${slug}:latest`;
-    await buildWithRailpack(deploymentId, srcPath, imageTag);
-    await db.update(deployments).set({ imageTag, updatedAt: new Date() }).where(eq(deployments.id, deploymentId));
+    const runImage = await buildWithRailpack(deploymentId, srcPath, imageTag);
+    await db.update(deployments).set({ imageTag: runImage, updatedAt: new Date() }).where(eq(deployments.id, deploymentId));
 
     // 3. Docker run
     await setStatus(deploymentId, 'deploying');
     const { containerId, internalIp, port } = await runContainer(
       deploymentId,
-      imageTag,
+      runImage,
       slug,
       config.appsNetwork,
     );
