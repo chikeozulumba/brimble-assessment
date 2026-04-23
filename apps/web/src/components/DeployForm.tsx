@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useCreateDeployment } from '../api/client';
 import { DeployConfigModal } from './DeployConfigModal';
 
@@ -22,7 +23,11 @@ export function DeployForm({ onDeployed }: Props) {
       setShowModal(true);
     } else {
       create.mutate({ source: source.trim() }, {
-        onSuccess: (dep) => { setSource(''); onDeployed(dep.id); },
+        onSuccess: (dep) => {
+          setSource('');
+          onDeployed(dep.id);
+          toast.success('Deployment started', { description: dep.slug });
+        },
       });
     }
   };
@@ -33,6 +38,7 @@ export function DeployForm({ onDeployed }: Props) {
         setSource('');
         setShowModal(false);
         onDeployed(dep.id);
+        toast.success('Deployment started', { description: dep.slug });
       },
     });
   };

@@ -12,7 +12,8 @@
     "@tanstack/react-query": "^5.60.0",
     "@tanstack/react-router": "^1.79.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

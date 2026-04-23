@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Deployment,
   useDeleteDeployment,
@@ -6,7 +7,10 @@ import {
   useRedeployDeployment,
   useStopDeployment,
 } from "../api/client";
+import { ConfirmModal } from "./ConfirmModal";
 import { LogStream } from "./LogStream";
+
+type PendingAction = { type: "stop" | "delete"; deploymentId: string };
 
 const statusColors: Record<string, string> = {
   pending: "bg-gray-400",
@@ -54,6 +58,7 @@ export function DeploymentList({ initialExpandId }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(
     initialExpandId ?? null,
   );
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   useEffect(() => {
     if (initialExpandId) setExpandedId(initialExpandId);
@@ -164,31 +169,32 @@ export function DeploymentList({ initialExpandId }: Props) {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
-                    onClick={() => redeploy.mutate(dep.id)}
+                    onClick={() =>
+                      redeploy.mutate(dep.id, {
+                        onSuccess: (newDep) =>
+                          toast.success("Redeployment started", {
+                            description: newDep.slug,
+                          }),
+                      })
+                    }
                     disabled={redeploy.isPending}
                     className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
                   >
                     Redeploy
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm("Stop this deployment?"))
-                        stopDep.mutate(dep.id);
-                    }}
+                    onClick={() =>
+                      setPendingAction({ type: "stop", deploymentId: dep.id })
+                    }
                     disabled={stopDep.isPending || isStopped}
                     className="px-2 py-1 text-xs bg-orange-50 text-orange-600 rounded hover:bg-orange-100 disabled:opacity-40"
                   >
                     Stop
                   </button>
                   <button
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Delete this deployment from records? This cannot be undone.",
-                        )
-                      )
-                        deleteDep.mutate(dep.id);
-                    }}
+                    onClick={() =>
+                      setPendingAction({ type: "delete", deploymentId: dep.id })
+                    }
                     disabled={deleteDep.isPending}
                     className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 disabled:opacity-50"
                   >
@@ -282,6 +288,41 @@ export function DeploymentList({ initialExpandId }: Props) {
           );
         })}
       </div>
+
+      {pendingAction && (
+        <ConfirmModal
+          title={
+            pendingAction.type === "stop"
+              ? "Stop deployment?"
+              : "Delete deployment?"
+          }
+          message={
+            pendingAction.type === "stop"
+              ? "This will stop the running container and remove its Caddy route. The record will remain."
+              : "This will permanently delete the deployment and all its logs. This cannot be undone."
+          }
+          confirmLabel={pendingAction.type === "stop" ? "Stop" : "Delete"}
+          confirmClassName={
+            pendingAction.type === "stop"
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-red-600 hover:bg-red-700 text-white"
+          }
+          onConfirm={() => {
+            const { type, deploymentId } = pendingAction;
+            setPendingAction(null);
+            if (type === "stop") {
+              stopDep.mutate(deploymentId, {
+                onSuccess: () => toast.success("Deployment stopped"),
+              });
+            } else {
+              deleteDep.mutate(deploymentId, {
+                onSuccess: () => toast.success("Deployment deleted"),
+              });
+            }
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
     </div>
   );
 }
