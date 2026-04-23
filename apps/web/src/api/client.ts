@@ -56,7 +56,7 @@ export function useLogs(deploymentId: string) {
 
 export function useCreateDeployment() {
   const qc = useQueryClient();
-  return useMutation<Deployment, Error, { source: string }>({
+  return useMutation<Deployment, Error, { source: string; envVars?: Record<string, string> }>({
     mutationFn: (body) =>
       apiFetch('/deployments', {
         method: 'POST',

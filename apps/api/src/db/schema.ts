@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, bigserial, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, bigserial, index, json } from 'drizzle-orm/pg-core';
 
 export const deployments = pgTable('deployments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -10,6 +10,7 @@ export const deployments = pgTable('deployments', {
   internalPort: integer('internal_port'),
   publicUrl: text('public_url'),
   errorMessage: text('error_message'),
+  envVars: json('env_vars').$type<Record<string, string>>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

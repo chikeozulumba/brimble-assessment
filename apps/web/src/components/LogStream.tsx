@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDeployment, LogEntry } from '../api/client';
+import { LogModal } from './LogModal';
 
 interface Props {
   deploymentId: string;
@@ -16,6 +17,7 @@ export function LogStream({ deploymentId }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,11 +57,18 @@ export function LogStream({ deploymentId }: Props) {
 
   return (
     <div className="flex flex-col h-full">
+      {showModal && <LogModal deploymentId={deploymentId} onClose={() => setShowModal(false)} />}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-medium text-gray-700">Deployment:</span>
         <span className="font-mono text-xs text-gray-500">{deploymentId}</span>
         <span className="ml-auto text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{status}</span>
         {done && <span className="text-xs text-gray-400">(stream closed)</span>}
+        <button
+          onClick={() => setShowModal(true)}
+          className="text-xs px-2 py-0.5 rounded bg-gray-800 text-white hover:bg-gray-700"
+        >
+          View Full Logs
+        </button>
       </div>
       {dep?.publicUrl && dep.status === 'running' && (
         <div className="mb-2">

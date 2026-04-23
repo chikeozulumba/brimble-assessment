@@ -12,21 +12,22 @@ function slug() {
 }
 
 deploymentsRoute.post('/', async (c) => {
-  const body = await c.req.json<{ source: string }>();
+  const body = await c.req.json<{ source: string; envVars?: Record<string, string> }>();
   if (!body.source) return c.json({ error: 'source is required' }, 400);
 
   const id = crypto.randomUUID();
   const s = slug();
+  const envVars = body.envVars && Object.keys(body.envVars).length > 0 ? body.envVars : null;
 
   const [dep] = await db.insert(deployments).values({
     id,
     slug: s,
     source: body.source,
     status: 'pending',
+    envVars,
   }).returning();
 
-  // Fire-and-forget
-  runPipeline(id, s, body.source).catch(console.error);
+  runPipeline(id, s, body.source, envVars ?? {}).catch(console.error);
 
   return c.json(dep, 201);
 });
@@ -56,9 +57,10 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
     slug: s,
     source: original.source,
     status: 'pending',
+    envVars: original.envVars,
   }).returning();
 
-  runPipeline(newId, s, original.source).catch(console.error);
+  runPipeline(newId, s, original.source, original.envVars ?? {}).catch(console.error);
 
   return c.json(dep, 201);
 });

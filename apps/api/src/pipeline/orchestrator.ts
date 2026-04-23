@@ -16,7 +16,7 @@ async function setStatus(id: string, status: string, extra: Record<string, unkno
   broker.publishStatus(id, status);
 }
 
-export async function runPipeline(deploymentId: string, slug: string, source: string) {
+export async function runPipeline(deploymentId: string, slug: string, source: string, envVars: Record<string, string> = {}) {
   const srcPath = join('/tmp/brimble', deploymentId, 'src');
 
   try {
@@ -36,6 +36,7 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
       runImage,
       slug,
       config.appsNetwork,
+      envVars,
     );
 
     // 4. Caddy route

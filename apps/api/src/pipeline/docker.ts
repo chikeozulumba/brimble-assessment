@@ -35,6 +35,7 @@ export async function runContainer(
   imageTag: string,
   slug: string,
   network: string,
+  envVars: Record<string, string> = {},
 ): Promise<RunResult> {
   await broker.publish(deploymentId, 'system', `Starting container for image ${imageTag}`);
 
@@ -42,13 +43,22 @@ export async function runContainer(
     await pullImage(deploymentId, imageTag);
   }
 
+  const baseEnv = [
+    'PORT=3000',
+    'NODE_ENV=production',
+    'NEXT_TELEMETRY_DISABLED=1',
+    // Railpack runtime images wrap Node with mise; keep logs quiet and avoid extra network work at start.
+    'MISE_LOG_LEVEL=error',
+  ];
+  const userEnv = Object.entries(envVars).map(([k, v]) => `${k}=${v}`);
+
   const container = await docker.createContainer({
     Image: imageTag,
     Labels: { 'brimble.slug': slug },
     HostConfig: {
       NetworkMode: network,
     },
-    Env: ['PORT=3000'],
+    Env: [...baseEnv, ...userEnv],
   });
 
   await container.start();

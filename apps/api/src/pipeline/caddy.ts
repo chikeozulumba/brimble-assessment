@@ -59,6 +59,16 @@ export async function addRoute(slug: string, ip: string, port: number) {
               {
                 handler: 'reverse_proxy',
                 upstreams: [{ dial: `${ip}:${port}` }],
+                headers: {
+                  request: {
+                    set: {
+                      Host: ['{http.request.host}'],
+                      'X-Forwarded-Host': ['{http.request.host}'],
+                      'X-Forwarded-Proto': ['{http.request.scheme}'],
+                      'X-Forwarded-Prefix': [`/apps/${slug}`],
+                    },
+                  },
+                },
               },
             ],
           },
