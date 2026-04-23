@@ -64,6 +64,7 @@ services:
       RAILPACK_FRONTEND: ghcr.io/railwayapp/railpack-frontend:v0.23.0
       # Optional: set to 1 for richer Railpack logs when debugging export/load issues.
       RAILPACK_VERBOSE: ${RAILPACK_VERBOSE:-}
+      LOGS_DIR: /tmp/brimble/logs
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - brimble_work:/tmp/brimble

@@ -91,3 +91,37 @@ export function useRedeployDeployment() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
   });
 }
+
+export interface BatchResult { succeeded: number; failed: number }
+
+export function useBatchStopDeployments() {
+  const qc = useQueryClient();
+  return useMutation<BatchResult, Error, string[]>({
+    mutationFn: async (ids) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => apiFetch(`/deployments/${id}/stop`, { method: 'POST' })),
+      );
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (succeeded === 0) throw new Error(`All ${ids.length} stop operations failed`);
+      return { succeeded, failed };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+  });
+}
+
+export function useBatchDeleteDeployments() {
+  const qc = useQueryClient();
+  return useMutation<BatchResult, Error, string[]>({
+    mutationFn: async (ids) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => apiFetch(`/deployments/${id}`, { method: 'DELETE' })),
+      );
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (succeeded === 0) throw new Error(`All ${ids.length} delete operations failed`);
+      return { succeeded, failed };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+  });
+}

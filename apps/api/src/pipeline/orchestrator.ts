@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { deployments } from '../db/schema.js';
 import { broker } from '../logs/broker.js';
+import { logWriter } from '../logs/writer.js';
 import { cloneRepo } from './git.js';
 import { buildWithRailpack } from './railpack.js';
 import { runContainer, stopAndRemoveContainer } from './docker.js';
@@ -18,13 +19,18 @@ async function setStatus(id: string, status: string, extra: Record<string, unkno
 
 export async function runPipeline(deploymentId: string, slug: string, source: string, envVars: Record<string, string> = {}) {
   const srcPath = join('/tmp/brimble', deploymentId, 'src');
+  const logPath = logWriter.getPath(deploymentId);
+
+  await db.update(deployments)
+    .set({ logPath, updatedAt: new Date() })
+    .where(eq(deployments.id, deploymentId));
 
   try {
     // 1. Clone
     await setStatus(deploymentId, 'building');
     await cloneRepo(deploymentId, source, srcPath);
 
-    // 2. Railpack + BuildKit (returns host-runnable ref, e.g. localhost:5000/brimble-…:latest when using registry push)
+    // 2. Railpack + BuildKit
     const imageTag = `brimble-${slug}:latest`;
     const runImage = await buildWithRailpack(deploymentId, srcPath, imageTag);
     await db.update(deployments).set({ imageTag: runImage, updatedAt: new Date() }).where(eq(deployments.id, deploymentId));
@@ -43,16 +49,11 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     await addRoute(slug, internalIp, port);
     const publicUrl = `${config.publicBaseUrl}/apps/${slug}/`;
 
-    await setStatus(deploymentId, 'running', {
-      containerId,
-      internalPort: port,
-      publicUrl,
-    });
-
-    await broker.publish(deploymentId, 'system', `Deployment running at ${publicUrl}`);
+    await setStatus(deploymentId, 'running', { containerId, internalPort: port, publicUrl });
+    broker.publish(deploymentId, 'system', `Deployment running at ${publicUrl}`);
   } catch (err: any) {
     const message = err?.message ?? String(err);
-    await broker.publish(deploymentId, 'system', `Pipeline failed: ${message}`);
+    broker.publish(deploymentId, 'system', `Pipeline failed: ${message}`);
     await setStatus(deploymentId, 'failed', { errorMessage: message });
   } finally {
     broker.close(deploymentId);
@@ -69,6 +70,8 @@ export async function teardownDeployment(deploymentId: string) {
   if (dep.slug) {
     await removeRoute(dep.slug).catch(() => {});
   }
+
+  await logWriter.close(deploymentId);
 
   await db.update(deployments)
     .set({ status: 'stopped', updatedAt: new Date() })
