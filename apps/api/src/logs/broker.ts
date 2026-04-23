@@ -24,6 +24,10 @@ class LogBroker {
     this.emitters.get(deploymentId)?.emit('status', { status });
   }
 
+  isActive(deploymentId: string): boolean {
+    return this.emitters.has(deploymentId);
+  }
+
   close(deploymentId: string) {
     this.emitters.get(deploymentId)?.emit('done');
     this.emitters.delete(deploymentId);

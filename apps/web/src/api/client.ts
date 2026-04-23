@@ -10,6 +10,7 @@ export interface Deployment {
   internalPort: number | null;
   publicUrl: string | null;
   errorMessage: string | null;
+  envVars: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 }
