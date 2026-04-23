@@ -65,11 +65,21 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
   return c.json(dep, 201);
 });
 
+deploymentsRoute.post('/:id/stop', async (c) => {
+  const id = c.req.param('id');
+  const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
+  if (!dep) return c.json({ error: 'not found' }, 404);
+
+  await teardownDeployment(id);
+  return c.json({ ok: true });
+});
+
 deploymentsRoute.delete('/:id', async (c) => {
   const id = c.req.param('id');
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
   if (!dep) return c.json({ error: 'not found' }, 404);
 
   await teardownDeployment(id);
+  await db.delete(deployments).where(eq(deployments.id, id));
   return c.json({ ok: true });
 });

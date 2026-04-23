@@ -68,6 +68,14 @@ export function useCreateDeployment() {
   });
 }
 
+export function useStopDeployment() {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (id) => apiFetch(`/deployments/${id}/stop`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+  });
+}
+
 export function useDeleteDeployment() {
   const qc = useQueryClient();
   return useMutation<unknown, Error, string>({

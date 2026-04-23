@@ -4,6 +4,7 @@ import {
   useDeleteDeployment,
   useDeployments,
   useRedeployDeployment,
+  useStopDeployment,
 } from "../api/client";
 import { LogStream } from "./LogStream";
 
@@ -29,7 +30,13 @@ interface Props {
   initialExpandId?: string;
 }
 
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+function InfoRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs font-medium text-gray-500 mb-0.5">{label}</dt>
@@ -40,11 +47,12 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 export function DeploymentList({ initialExpandId }: Props) {
   const { data: deployments, isLoading } = useDeployments();
+  const stopDep = useStopDeployment();
   const deleteDep = useDeleteDeployment();
   const redeploy = useRedeployDeployment();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(
-    initialExpandId ?? null
+    initialExpandId ?? null,
   );
 
   useEffect(() => {
@@ -64,6 +72,9 @@ export function DeploymentList({ initialExpandId }: Props) {
 
   return (
     <div>
+      <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+        Deployments ({filtered.length})
+      </h2>
       {/* Status filter pills */}
       <div className="flex flex-wrap gap-1.5 mb-4">
         <button
@@ -105,6 +116,7 @@ export function DeploymentList({ initialExpandId }: Props) {
         {filtered.map((dep: Deployment) => {
           const isExpanded = expandedId === dep.id;
           const isRunning = dep.status === "running";
+          const isStopped = dep.status === "stopped";
 
           return (
             <div
@@ -160,7 +172,21 @@ export function DeploymentList({ initialExpandId }: Props) {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm("Delete this deployment?"))
+                      if (confirm("Stop this deployment?"))
+                        stopDep.mutate(dep.id);
+                    }}
+                    disabled={stopDep.isPending || isStopped}
+                    className="px-2 py-1 text-xs bg-orange-50 text-orange-600 rounded hover:bg-orange-100 disabled:opacity-40"
+                  >
+                    Stop
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Delete this deployment from records? This cannot be undone.",
+                        )
+                      )
                         deleteDep.mutate(dep.id);
                     }}
                     disabled={deleteDep.isPending}
@@ -222,7 +248,9 @@ export function DeploymentList({ initialExpandId }: Props) {
                       </InfoRow>
                       {dep.errorMessage && (
                         <InfoRow label="Error">
-                          <span className="text-red-600">{dep.errorMessage}</span>
+                          <span className="text-red-600">
+                            {dep.errorMessage}
+                          </span>
                         </InfoRow>
                       )}
                       {dep.envVars && Object.keys(dep.envVars).length > 0 && (
