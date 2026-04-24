@@ -14,9 +14,10 @@ The workspace package name is `bimbo-assessment`; your clone folder may still be
 
 Visit **[http://localhost:8080](http://localhost:8080)**.
 
-Paste a Git URL (e.g. the `sample-app/` directory pushed to any public repo, or any small Node/Go project) and click **Deploy**. Logs stream while Railpack runs.
+## Sample apps
 
-**Private GitHub repos:** set `GITHUB_TOKEN` in the environment (see table below) so the API can clone with auth.
+- **[Brimble Sample App](https://github.com/chikeozulumba/brimble-sample-app)**
+- **[Netflix Clone](https://github.com/Cheemma1/Netflix-Clone)**
 
 ## Architecture
 
@@ -49,6 +50,9 @@ Up to **two** deployments may be in the **`building`** phase at the same time (c
 Log fan-out still uses an in-process **EventEmitter** per deployment; history is in Postgres. **Redis/BullMQ** would be the next step for multi-replica APIs or durable cross-process queues.
 
 ## Environment variables
+
+
+**Private GitHub repos:** set `GITHUB_TOKEN` in the environment (see table below) so the API can clone with auth.
 
 Defaults live in `docker-compose.yml`. Override as needed.
 
@@ -86,5 +90,4 @@ If the app reads **`PORT`** (any casing) from env with a numeric value **1–655
 ## Links
 
 - [Architecture](ARCHITECTURE.md)
-- [Platform feedback (Brimble)](BIMBO_FEEDBACK.md)
 - Loom: *[to be recorded and linked]*
