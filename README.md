@@ -66,15 +66,9 @@ Defaults live in `docker-compose.yml`. Override as needed.
 | `RAILPACK_VERBOSE` | _(empty)_ | Optional verbosity for Railpack |
 | `LOGS_DIR` | `/tmp/bimbo/logs` | On-disk log file directory inside the API container |
 
-## Testing the pipeline
-
-The `sample-app/` in this repo is a minimal **Express** app with `GET /health`. Push it to a public GitHub repo and paste the URL into the deploy form. Railpack detects Node and produces a runnable image with no extra config.
-
 If the app reads **`PORT`** (any casing) from env with a numeric value **1–65535**, that port is used for the container and for Caddy’s upstream; otherwise the image’s exposed port (or **3000**) is used.
 
 ## Key decisions
-
-**TanStack Router (not Next.js)** — The spec required TanStack explicitly. Next would add SSR complexity with no benefit for a single-page internal tool.
 
 **Hono (not Express/Fastify)** — `streamSSE` handles SSE keepalive and client-abort cleanup correctly out of the box.
 
@@ -82,31 +76,12 @@ If the app reads **`PORT`** (any casing) from env with a numeric value **1–655
 
 **BuildKit + local registry** — Railpack builds need a remote BuildKit and a registry to push/pull; compose wires a minimal pair on the same network as the API.
 
-**Drizzle ORM** — Type-first, migrations are plain SQL committed to the repo; the API container applies them at startup.
-
 ## What I'd do with another weekend
 
 - Reconcile orphaned containers on API restart (Docker labels ↔ Postgres)
 - Zero-downtime redeploy: start new container, flip Caddy route, drain old
 - Shared Railpack / BuildKit cache volume across builds
 - Proper `Last-Event-ID` SSE reconnect so clients don’t miss logs on reconnect
-
-## Trade-offs
-
-- **Production web image** uses **nginx** to serve `vite build` output (`apps/web/Dockerfile`, `apps/web/nginx.conf`); local dev uses Vite with an `/api` proxy.
-- **`nanoid`** for URL-safe slugs — `crypto.randomUUID().slice(0, 8)` would be enough for a toy.
-
-## Rough time spent
-
-| Phase | Time |
-| ----- | ---- |
-| Scaffold + plumbing (phases 0–1) | ~2h |
-| CRUD + pipeline (phases 2–3) | ~3h |
-| SSE streaming (phase 4) | ~1.5h |
-| Docker run + Caddy routing (phase 5) | ~2h |
-| Delete/cleanup + tests (phases 6–7) | ~1.5h |
-| Docs + README | ~1h |
-| **Total** | **~11h** |
 
 ## Links
 

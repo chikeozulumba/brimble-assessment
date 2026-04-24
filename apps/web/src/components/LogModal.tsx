@@ -21,8 +21,8 @@ const STREAM_LABEL: Record<string, string> = {
 };
 
 export function LogModal({ deploymentId, onClose }: Props) {
-  const { data: dep }             = useDeployment(deploymentId);
-  const { data: logs, isLoading } = useLogs(deploymentId);
+  const { data: dep } = useDeployment(deploymentId);
+  const { data: logs, isLoading } = useLogs(deploymentId, { refetchIntervalMs: 1500 });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

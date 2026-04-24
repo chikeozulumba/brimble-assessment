@@ -1,3 +1,5 @@
+import { mkdir, rm } from "node:fs/promises";
+import { dirname } from "node:path";
 import { simpleGit } from "simple-git";
 import { config } from "../config.js";
 import { broker } from "../logs/broker.js";
@@ -30,6 +32,10 @@ export async function cloneRepo(
     "system",
     `Cloning ${source} into ${destPath}`,
   );
+  const workspaceRoot = dirname(destPath);
+  await rm(workspaceRoot, { recursive: true, force: true });
+  await mkdir(workspaceRoot, { recursive: true });
+
   process.env.GIT_TERMINAL_PROMPT = "0";
   const git = simpleGit();
   await git.clone(githubCloneUrl(source), destPath, ["--depth", "1"]);

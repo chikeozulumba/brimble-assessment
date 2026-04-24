@@ -81,12 +81,23 @@ export function useDeployment(id: string) {
   });
 }
 
-export function useLogs(deploymentId: string) {
+export type UseLogsOptions = {
+  /**
+   * Refetch interval in ms (e.g. 1500 for full-history modal while the pipeline appends logs).
+   * Omit or 0 to fetch only on mount / invalidation.
+   */
+  refetchIntervalMs?: number;
+};
+
+export function useLogs(deploymentId: string, options?: UseLogsOptions) {
+  const ms = options?.refetchIntervalMs;
+  const interval = typeof ms === 'number' && ms > 0 ? ms : false;
   return useQuery<LogEntry[]>({
     queryKey: ['logs', deploymentId],
     queryFn: () => apiFetch(`/deployments/${deploymentId}/logs`),
     enabled: Boolean(deploymentId),
-    refetchInterval: false,
+    staleTime: 0,
+    refetchInterval: interval,
   });
 }
 
