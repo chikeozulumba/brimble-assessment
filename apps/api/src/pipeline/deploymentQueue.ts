@@ -2,19 +2,26 @@ import { asc, eq, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { deployments } from '../db/schema.js';
 import { runPipeline } from './orchestrator.js';
+import {
+  canStartBuildWithoutWaiting,
+  getBuildingSlotsInUse,
+  MAX_CONCURRENT_BUILDING,
+  onBuildSlotFreed,
+} from './buildConcurrency.js';
 
-/** Max concurrent `runPipeline` executions (clone → build → deploy). */
-export const MAX_CONCURRENT_PIPELINES = 2;
+export { MAX_CONCURRENT_BUILDING };
 
 const processing = new Set<string>();
 const fifo: string[] = [];
 
 function pump(): void {
-  while (processing.size < MAX_CONCURRENT_PIPELINES && fifo.length > 0) {
+  while (canStartBuildWithoutWaiting() && fifo.length > 0) {
     const id = fifo.shift()!;
     void runSlot(id);
   }
 }
+
+onBuildSlotFreed(() => pump());
 
 async function runSlot(deploymentId: string): Promise<void> {
   processing.add(deploymentId);
@@ -33,12 +40,12 @@ async function runSlot(deploymentId: string): Promise<void> {
   }
 }
 
-/** Schedule a deployment pipeline when a slot is free; otherwise FIFO-wait. */
+/** Schedule a deployment pipeline; FIFO-waits only while two deployments are in the `building` phase. */
 export function enqueueDeploymentPipeline(deploymentId: string): void {
   if (processing.has(deploymentId)) return;
   if (fifo.includes(deploymentId)) return;
 
-  if (processing.size < MAX_CONCURRENT_PIPELINES) {
+  if (canStartBuildWithoutWaiting()) {
     void runSlot(deploymentId);
   } else {
     fifo.push(deploymentId);
@@ -64,8 +71,9 @@ export function getWaitingQueuePosition(deploymentId: string): number | null {
 
 export function getDeploymentQueueSummary() {
   return {
-    maxConcurrent: MAX_CONCURRENT_PIPELINES,
+    maxConcurrent: MAX_CONCURRENT_BUILDING,
     activeCount: processing.size,
+    buildingSlotsInUse: getBuildingSlotsInUse(),
     activeIds: [...processing],
     waitingIds: [...fifo],
     waitingCount: fifo.length,

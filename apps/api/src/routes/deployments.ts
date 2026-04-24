@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { db } from '../db/client.js';
 import { deployments } from '../db/schema.js';
 import { teardownDeployment } from '../pipeline/orchestrator.js';
+import { canStartBuildWithoutWaiting } from '../pipeline/buildConcurrency.js';
 import {
   cancelQueuedDeployment,
   enqueueDeploymentPipeline,
@@ -40,11 +41,13 @@ deploymentsRoute.post('/', async (c) => {
   const s = slug();
   const envVars = body.envVars && Object.keys(body.envVars).length > 0 ? body.envVars : null;
 
+  const initialStatus = canStartBuildWithoutWaiting() ? 'pending' : 'queued';
+
   const [dep] = await db.insert(deployments).values({
     id,
     slug: s,
     source: body.source,
-    status: 'queued',
+    status: initialStatus,
     envVars,
   }).returning();
 
@@ -90,11 +93,13 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
   const newId = crypto.randomUUID();
   const s = slug();
 
+  const initialStatus = canStartBuildWithoutWaiting() ? 'pending' : 'queued';
+
   const [dep] = await db.insert(deployments).values({
     id: newId,
     slug: s,
     source: original.source,
-    status: 'queued',
+    status: initialStatus,
     envVars,
   }).returning();
 

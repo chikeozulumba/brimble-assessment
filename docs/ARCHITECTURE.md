@@ -26,9 +26,9 @@ Caddy :8080                  (single ingress)
 ### `api` — Backend (Node 20 + Hono)
 - Receives deploy requests, orchestrates the pipeline, streams logs over SSE
 - Mounts `/var/run/docker.sock` so it can drive the host Docker daemon
-- **Build queue:** at most **2** concurrent `runPipeline` runs (clone → build → deploy). New deployments are inserted as `queued`, then start in FIFO order when a slot frees. `GET /api/deployments/queue/summary` exposes live slot usage; list/detail responses include `queuePosition` / `pipelineSlotHeld` for UI
+- **Build concurrency:** at most **2** deployments in the `building` phase at once (clone + Railpack image build). After `building`, the slot is released so `deploying` / `running` work does not block new builds. New rows use `pending` when a build slot is available immediately, and `queued` only when both build slots are busy (FIFO wait). `GET /api/deployments/queue/summary` exposes `buildingSlotsInUse`, pipeline `activeCount`, and FIFO `waitingCount`; list/detail include `queuePosition` / `pipelineSlotHeld` for UI
 - On startup, `resumeStaleQueuedDeployments()` re-enqueues any `queued` or legacy `pending` rows
-- Pipeline state machine: `queued → building → deploying → running | failed` (legacy `pending` is still accepted)
+- Pipeline state machine: `pending | queued → building → deploying → running | failed` (`pending` = admitted to a worker; `queued` = waiting in FIFO for a build slot)
 - In-memory `LogBroker` (EventEmitter per deployment) fans out to SSE subscribers and writes to Postgres
 
 ### `web` — Frontend (Vite + React)

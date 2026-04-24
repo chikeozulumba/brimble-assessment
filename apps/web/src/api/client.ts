@@ -15,13 +15,15 @@ export interface Deployment {
   updatedAt: string;
   /** 1-based wait position when status is `queued` and waiting for a build slot. */
   queuePosition?: number | null;
-  /** True while this deployment holds one of the concurrent pipeline workers (clone→deploy). */
+  /** True while this deployment's pipeline worker is active (clone → running / failed). */
   pipelineSlotHeld?: boolean;
 }
 
 export interface DeploymentQueueSummary {
   maxConcurrent: number;
   activeCount: number;
+  /** Deployments currently in the `building` phase (Railpack / image build). */
+  buildingSlotsInUse: number;
   activeIds: string[];
   waitingIds: string[];
   waitingCount: number;
@@ -57,7 +59,7 @@ export function useDeploymentQueueSummary() {
     refetchInterval: (q) => {
       const d = q.state.data;
       if (!d) return 2500;
-      return d.waitingCount > 0 || d.activeCount > 0 ? 2000 : false;
+      return d.waitingCount > 0 || d.activeCount > 0 || d.buildingSlotsInUse > 0 ? 2000 : false;
     },
   });
 }

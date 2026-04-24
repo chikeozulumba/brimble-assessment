@@ -515,28 +515,8 @@ export function DeploymentList({
             </button>
           );
         })}
-
-        <span
-          className="ml-auto text-xs font-medium tabular-nums px-1 text-right leading-snug"
-          style={{ color: "var(--text-2)" }}
-        >
-          {filtered.length}
-          {deployments.length !== filtered.length
-            ? ` / ${deployments.length}`
-            : ""}{" "}
-          <span style={{ color: "var(--text-3)", fontWeight: 500 }}>
-            deployments
-          </span>
-          <span
-            className="block text-[10px] font-normal mt-0.5"
-            style={{ color: "var(--text-3)" }}
-          >
-            Max 2 pipelines at once; extras queue in order.
-          </span>
-        </span>
       </div>
 
-      {/* ── Batch action bar ────────────────────────────────────────── */}
       {someSelected && (
         <div
           className="animate-slide-down flex items-center gap-2 px-4 py-3 rounded-xl border"
@@ -588,26 +568,54 @@ export function DeploymentList({
         </div>
       )}
 
-      {/* ── Select-all ──────────────────────────────────────────────── */}
-      {filtered.length > 0 && (
-        <div className="flex items-center gap-2 px-1">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected && !allSelected;
-            }}
-            onChange={toggleAll}
-            className="w-3.5 h-3.5 cursor-pointer rounded"
-          />
+      {/* ── Batch action bar ────────────────────────────────────────── */}
+      <div
+        className={[
+          "flex items-center w-full",
+          filtered.length > 0 ? "justify-between" : "justify-end",
+        ].join(" ")}
+      >
+        {/* ── Select-all ──────────────────────────────────────────────── */}
+        {filtered.length > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected && !allSelected;
+              }}
+              onChange={toggleAll}
+              className="w-3.5 h-3.5 cursor-pointer rounded"
+            />
+            <span
+              className="text-xs select-none"
+              style={{ color: "var(--text-3)" }}
+            >
+              Select all
+            </span>
+          </div>
+        )}
+
+        <span
+          className="ml-auto text-xs font-medium tabular-nums px-1 text-right leading-snug"
+          style={{ color: "var(--text-2)" }}
+        >
+          {filtered.length}
+          {deployments.length !== filtered.length
+            ? ` / ${deployments.length}`
+            : ""}{" "}
+          <span style={{ color: "var(--text-3)", fontWeight: 500 }}>
+            deployments
+          </span>
           <span
-            className="text-xs select-none"
+            className="block text-[10px] font-normal mt-0.5"
             style={{ color: "var(--text-3)" }}
           >
-            Select all
+            Max 2 concurrent image builds; extras queue only when both build
+            slots are busy.
           </span>
-        </div>
-      )}
+        </span>
+      </div>
 
       {filtered.length === 0 && (
         <p
@@ -663,26 +671,26 @@ export function DeploymentList({
                   {dep.status}
                 </span>
 
-                {(dep.status === "queued" || dep.status === "pending") &&
-                  (dep.pipelineSlotHeld || dep.queuePosition != null) && (
-                    <span
-                      className="text-[10px] font-semibold tabular-nums shrink-0 px-1.5 py-0.5 rounded-md border hidden sm:inline-block max-w-[5.5rem] truncate text-center"
-                      style={{
-                        borderColor: "rgba(99,102,241,0.35)",
-                        color: "#6366f1",
-                        background: "rgba(99,102,241,0.08)",
-                      }}
-                      title={
-                        dep.pipelineSlotHeld
-                          ? "Build slot acquired — pipeline starting"
-                          : `Waiting in build queue (position ${dep.queuePosition})`
-                      }
-                    >
-                      {dep.pipelineSlotHeld
-                        ? "Starting"
-                        : `#${dep.queuePosition}`}
-                    </span>
-                  )}
+                {((dep.status === "pending" && dep.pipelineSlotHeld) ||
+                  (dep.status === "queued" && dep.queuePosition != null)) && (
+                  <span
+                    className="text-[10px] font-semibold tabular-nums shrink-0 px-1.5 py-0.5 rounded-md border hidden sm:inline-block max-w-[5.5rem] truncate text-center"
+                    style={{
+                      borderColor: "rgba(99,102,241,0.35)",
+                      color: "#6366f1",
+                      background: "rgba(99,102,241,0.08)",
+                    }}
+                    title={
+                      dep.pipelineSlotHeld
+                        ? "Build slot acquired — pipeline starting"
+                        : `Waiting for a build slot (position ${dep.queuePosition})`
+                    }
+                  >
+                    {dep.pipelineSlotHeld
+                      ? "Starting"
+                      : `#${dep.queuePosition}`}
+                  </span>
+                )}
 
                 {/* Slug */}
                 <span
@@ -811,7 +819,7 @@ export function DeploymentList({
                         </p>
                         <dl>
                           <PropRow label="id">{dep.id}</PropRow>
-                          <PropRow label="deploymentId">{dep.slug}</PropRow>
+                          <PropRow label="deployment">{dep.slug}</PropRow>
                           <PropRow label="status">
                             <StatusBadge status={dep.status} />
                           </PropRow>

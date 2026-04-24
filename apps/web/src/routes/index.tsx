@@ -145,7 +145,10 @@ export function IndexPage() {
                   }
                 />
               )}
-              {queueSum && (queueSum.waitingCount > 0 || queueSum.activeCount > 0) && (
+              {queueSum &&
+                (queueSum.waitingCount > 0 ||
+                  queueSum.activeCount > 0 ||
+                  queueSum.buildingSlotsInUse > 0) && (
                 <span
                   className="hidden md:inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums border"
                   style={{
@@ -153,9 +156,9 @@ export function IndexPage() {
                     borderColor: "var(--border)",
                     background: "var(--raised-2)",
                   }}
-                  title="Concurrent pipelines (clone → deploy). Extra deployments wait in FIFO order."
+                  title="Concurrent image builds (Railpack). Pipelines in deploy/run do not use a build slot. Extra deploys wait in FIFO when both build slots are busy."
                 >
-                  Slots {queueSum.activeCount}/{queueSum.maxConcurrent}
+                  Build slots {queueSum.buildingSlotsInUse}/{queueSum.maxConcurrent}
                   {queueSum.waitingCount > 0 ? ` · ${queueSum.waitingCount} waiting` : ""}
                 </span>
               )}

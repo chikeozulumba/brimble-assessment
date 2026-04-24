@@ -9,6 +9,7 @@ import { buildWithRailpack } from './railpack.js';
 import { runContainer, stopAndRemoveContainer } from './docker.js';
 import { addRoute, removeRoute } from './caddy.js';
 import { config } from '../config.js';
+import { acquireBuildSlot, releaseBuildSlot } from './buildConcurrency.js';
 
 async function setStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   await db.update(deployments)
@@ -25,7 +26,11 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     .set({ logPath, updatedAt: new Date() })
     .where(eq(deployments.id, deploymentId));
 
+  let buildSlotHeld = false;
   try {
+    await acquireBuildSlot();
+    buildSlotHeld = true;
+
     // 1. Clone
     await setStatus(deploymentId, 'building');
     await cloneRepo(deploymentId, source, srcPath);
@@ -35,8 +40,11 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     const runImage = await buildWithRailpack(deploymentId, srcPath, imageTag);
     await db.update(deployments).set({ imageTag: runImage, updatedAt: new Date() }).where(eq(deployments.id, deploymentId));
 
-    // 3. Docker run
+    // 3. Docker run — release build slot once `building` work is done
     await setStatus(deploymentId, 'deploying');
+    releaseBuildSlot();
+    buildSlotHeld = false;
+
     const { containerId, internalIp, port } = await runContainer(
       deploymentId,
       runImage,
@@ -56,6 +64,11 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     broker.publish(deploymentId, 'system', `Pipeline failed: ${message}`);
     await setStatus(deploymentId, 'failed', { errorMessage: message });
     broker.close(deploymentId);
+  } finally {
+    if (buildSlotHeld) {
+      releaseBuildSlot();
+      buildSlotHeld = false;
+    }
   }
 }
 

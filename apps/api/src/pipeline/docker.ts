@@ -51,6 +51,27 @@ export interface RunResult {
   port: number;
 }
 
+const FALLBACK_APP_PORT = 3000;
+
+/** Keys that normalize to `PORT` (e.g. PORT, port, Port). Value must be an integer 1–65535. */
+export function parseNumericPortFromEnv(envVars: Record<string, string>): number | null {
+  const tryVal = (v: string | undefined): number | null => {
+    if (v === undefined) return null;
+    const n = Number(String(v).trim());
+    if (Number.isInteger(n) && n >= 1 && n <= 65535) return n;
+    return null;
+  };
+  const fromExplicit = tryVal(envVars.PORT) ?? tryVal(envVars.port);
+  if (fromExplicit != null) return fromExplicit;
+  for (const [key, val] of Object.entries(envVars)) {
+    if (key === 'PORT' || key === 'port') continue;
+    if (key.toUpperCase() !== 'PORT') continue;
+    const n = tryVal(val);
+    if (n != null) return n;
+  }
+  return null;
+}
+
 export async function runContainer(
   deploymentId: string,
   imageTag: string,
@@ -64,8 +85,10 @@ export async function runContainer(
     await pullImage(deploymentId, imageTag);
   }
 
+  const appPort = parseNumericPortFromEnv(envVars) ?? FALLBACK_APP_PORT;
+
   const baseEnv = [
-    'PORT=3000',
+    `PORT=${appPort}`,
     'NODE_ENV=production',
     'NEXT_TELEMETRY_DISABLED=1',
     // Railpack runtime images wrap Node with mise; keep logs quiet and avoid extra network work at start.
@@ -89,10 +112,12 @@ export async function runContainer(
   const networkInfo = networks[network] ?? Object.values(networks)[0];
   const internalIp = networkInfo?.IPAddress ?? '';
 
-  // Detect the exposed port from image config
+  // Prefer explicit numeric PORT / port from deployment env; else first EXPOSE from image
+  const fromEnv = parseNumericPortFromEnv(envVars);
   const exposedPorts = info.Config.ExposedPorts ?? {};
-  const portKey = Object.keys(exposedPorts)[0] ?? '3000/tcp';
-  const port = parseInt(portKey.split('/')[0], 10);
+  const portKey = Object.keys(exposedPorts)[0] ?? `${FALLBACK_APP_PORT}/tcp`;
+  const fromImage = parseInt(portKey.split('/')[0], 10);
+  const port = fromEnv ?? (Number.isFinite(fromImage) ? fromImage : FALLBACK_APP_PORT);
 
   await broker.publish(deploymentId, 'system', `Container ${container.id.slice(0, 12)} running at ${internalIp}:${port}`);
 
