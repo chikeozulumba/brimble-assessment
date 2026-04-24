@@ -11,6 +11,7 @@ import {
   useStopDeployment,
 } from "../api/client";
 import { ConfirmModal } from "./ConfirmModal";
+import { DeployConfigModal } from "./DeployConfigModal";
 import {
   IconCalendar,
   IconChevronDown,
@@ -326,6 +327,7 @@ export function DeploymentList({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null,
   );
+  const [redeployTarget, setRedeployTarget] = useState<Deployment | null>(null);
 
   useEffect(() => {
     if (initialExpandId) setExpandedId(initialExpandId);
@@ -731,16 +733,29 @@ export function DeploymentList({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Btn
-                    disabled={redeploy.isPending}
-                    icon={<IconRefresh className="w-3.5 h-3.5" />}
-                    onClick={() =>
-                      redeploy.mutate(dep.id, {
-                        onSuccess: (d) =>
-                          toast.success("Redeployment started", {
-                            description: d.slug,
-                          }),
-                      })
+                    disabled={
+                      redeploy.isPending && redeploy.variables?.id === dep.id
                     }
+                    icon={<IconRefresh className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      const hasEnv =
+                        dep.envVars != null &&
+                        typeof dep.envVars === "object" &&
+                        Object.keys(dep.envVars).length > 0;
+                      if (hasEnv) {
+                        setRedeployTarget(dep);
+                      } else {
+                        redeploy.mutate(
+                          { id: dep.id },
+                          {
+                            onSuccess: (d) =>
+                              toast.success("Redeployment started", {
+                                description: d.slug,
+                              }),
+                          },
+                        );
+                      }
+                    }}
                   >
                     Redeploy
                   </Btn>
@@ -894,6 +909,32 @@ export function DeploymentList({
           );
         })}
       </div>
+
+      {redeployTarget && (
+        <DeployConfigModal
+          key={redeployTarget.id}
+          source={redeployTarget.source}
+          initialEnvVars={redeployTarget.envVars ?? undefined}
+          title="Redeploy"
+          confirmLabel="Redeploy"
+          envHint="Variables are prefilled from this deployment. Changes apply only to the new deployment. Remove all keys to clear environment variables."
+          onConfirm={(envVars) => {
+            redeploy.mutate(
+              { id: redeployTarget.id, envVars },
+              {
+                onSuccess: (d) => {
+                  setRedeployTarget(null);
+                  toast.success("Redeployment started", {
+                    description: d.slug,
+                  });
+                },
+              },
+            );
+          }}
+          onCancel={() => setRedeployTarget(null)}
+          isPending={redeploy.isPending}
+        />
+      )}
 
       {pendingAction && modalCfg && (
         <ConfirmModal

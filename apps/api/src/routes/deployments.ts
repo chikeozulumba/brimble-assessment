@@ -70,6 +70,23 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
   const [original] = await db.select().from(deployments).where(eq(deployments.id, id));
   if (!original) return c.json({ error: 'not found' }, 404);
 
+  let envVars = original.envVars;
+  const ct = c.req.header('content-type') ?? '';
+  if (ct.includes('application/json')) {
+    try {
+      const body = await c.req.json<{ envVars?: Record<string, string> }>();
+      if (body && typeof body === 'object' && 'envVars' in body) {
+        const ev = body.envVars;
+        envVars =
+          ev != null && typeof ev === 'object' && !Array.isArray(ev) && Object.keys(ev).length > 0
+            ? (ev as Record<string, string>)
+            : null;
+      }
+    } catch {
+      /* keep original.envVars */
+    }
+  }
+
   const newId = crypto.randomUUID();
   const s = slug();
 
@@ -78,7 +95,7 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
     slug: s,
     source: original.source,
     status: 'queued',
-    envVars: original.envVars,
+    envVars,
   }).returning();
 
   enqueueDeploymentPipeline(newId);

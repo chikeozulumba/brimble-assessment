@@ -117,10 +117,21 @@ export function useDeleteDeployment() {
   });
 }
 
+export interface RedeployPayload {
+  id: string;
+  /** When set (including `{}`), replaces env vars for the new deployment; omit to copy the original row. */
+  envVars?: Record<string, string>;
+}
+
 export function useRedeployDeployment() {
   const qc = useQueryClient();
-  return useMutation<Deployment, Error, string>({
-    mutationFn: (id) => apiFetch(`/deployments/${id}/redeploy`, { method: 'POST' }),
+  return useMutation<Deployment, Error, RedeployPayload>({
+    mutationFn: ({ id, envVars }) =>
+      apiFetch(`/deployments/${id}/redeploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envVars !== undefined ? { envVars } : {}),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deployments'] });
       qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });

@@ -4,15 +4,38 @@ import { IconRocket, IconTrash } from './icons';
 
 interface EnvRow { key: string; value: string }
 
+function envToRows(initial: Record<string, string> | null | undefined): EnvRow[] {
+  if (!initial || Object.keys(initial).length === 0) {
+    return [{ key: '', value: '' }];
+  }
+  return [
+    ...Object.entries(initial).map(([key, value]) => ({ key, value })),
+    { key: '', value: '' },
+  ];
+}
+
 interface Props {
   source: string;
   onConfirm: (envVars: Record<string, string>) => void;
   onCancel: () => void;
   isPending: boolean;
+  initialEnvVars?: Record<string, string> | null;
+  title?: string;
+  confirmLabel?: string;
+  envHint?: string;
 }
 
-export function DeployConfigModal({ source, onConfirm, onCancel, isPending }: Props) {
-  const [rows, setRows] = useState<EnvRow[]>([{ key: '', value: '' }]);
+export function DeployConfigModal({
+  source,
+  onConfirm,
+  onCancel,
+  isPending,
+  initialEnvVars,
+  title = 'Configure deployment',
+  confirmLabel = 'Deploy',
+  envHint = 'Leave blank to deploy without extra variables.',
+}: Props) {
+  const [rows, setRows] = useState<EnvRow[]>(() => envToRows(initialEnvVars));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !isPending) onCancel(); };
@@ -72,7 +95,7 @@ export function DeployConfigModal({ source, onConfirm, onCancel, isPending }: Pr
             <IconRocket className="w-5 h-5" strokeWidth={1.75} />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold" style={{ color: "var(--text)" }}>Configure deployment</h2>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text)" }}>{title}</h2>
             <p className="text-xs mt-0.5 font-mono truncate" style={{ color: "var(--text-3)" }}>
               {source.replace(/^https?:\/\/(www\.)?/, '')}
             </p>
@@ -126,7 +149,7 @@ export function DeployConfigModal({ source, onConfirm, onCancel, isPending }: Pr
             ))}
           </div>
           <p className="text-xs mt-3" style={{ color: "var(--text-3)" }}>
-            Leave blank to deploy without extra variables.
+            {envHint}
           </p>
         </div>
 
@@ -164,7 +187,7 @@ export function DeployConfigModal({ source, onConfirm, onCancel, isPending }: Pr
             ) : (
               <>
                 <IconRocket className="w-4 h-4" strokeWidth={1.75} />
-                Deploy
+                {confirmLabel}
               </>
             )}
           </button>
