@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useCreateDeployment } from '../api/client';
 import { DeployConfigModal } from './DeployConfigModal';
+import { IconGitBranch, IconRocket } from './icons';
 
 interface Props { onDeployed: (id: string) => void }
 
@@ -41,65 +42,66 @@ export function DeployForm({ onDeployed }: Props) {
         <DeployConfigModal source={source.trim()} onConfirm={handleConfirm} onCancel={() => setShowModal(false)} isPending={create.isPending} />
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        {/* Prompt */}
-        <div
-          className="flex items-center gap-2.5 px-3 rounded-md border shrink-0"
-          style={{ background: "var(--raised)", borderColor: "var(--border-2)" }}
-        >
-          <span className="text-xs font-mono font-semibold select-none" style={{ color: "var(--accent)" }}>~/</span>
-        </div>
-
-        {/* URL input */}
-        <div className="relative flex-1">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 min-w-0">
+          <span
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex text-[var(--text-3)]"
+            aria-hidden
+          >
+            <IconGitBranch className="w-4 h-4" strokeWidth={1.75} />
+          </span>
           <input
             type="text"
             value={source}
             onChange={(e) => setSource(e.target.value)}
             placeholder="https://github.com/owner/repo"
-            className="w-full h-9 pl-3 pr-4 rounded-md border text-xs font-mono transition-all placeholder-[var(--text-3)] focus:outline-none"
+            className="w-full h-10 pl-10 pr-3 rounded-lg border text-sm transition-all focus:outline-none placeholder-[var(--text-3)] shadow-sm"
             style={{
               background: "var(--raised)",
-              borderColor: source ? "var(--border-2)" : "var(--border)",
+              borderColor: "var(--border-2)",
               color: "var(--text)",
             }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px var(--accent-glow)"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = source ? "var(--border-2)" : "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.boxShadow = "var(--ring-focus)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-2)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
             disabled={create.isPending}
           />
         </div>
 
-        {/* Deploy button */}
         <button
           type="submit"
           disabled={create.isPending || !source.trim()}
-          className="h-9 px-4 rounded-md text-xs font-semibold font-mono flex items-center gap-2 transition-all disabled:opacity-40"
+          className="h-10 px-5 rounded-lg text-sm font-semibold inline-flex items-center justify-center gap-2 shrink-0 transition-all disabled:opacity-40 hover:opacity-95 active:scale-[0.99]"
           style={{
-            background: create.isPending || !source.trim() ? "var(--raised-2)" : "var(--accent)",
-            color: create.isPending || !source.trim() ? "var(--text-2)" : "var(--base)",
-            border: `1px solid ${create.isPending || !source.trim() ? "var(--border-2)" : "var(--accent)"}`,
+            background: "linear-gradient(180deg, #1a1a1a 0%, #111 100%)",
+            color: "#ffffff",
+            border: "1px solid #000",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.12), 0 4px 12px rgba(17,17,17,0.15)",
           }}
         >
           {create.isPending ? (
             <>
-              <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              running…
+              Deploying…
             </>
           ) : (
             <>
-              <span>deploy</span>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              </svg>
+              <IconRocket className="w-4 h-4" strokeWidth={1.75} />
+              Deploy
             </>
           )}
         </button>
 
         {create.isError && (
-          <span className="self-center text-xs font-mono" style={{ color: "var(--s-failed)" }}>
+          <span className="self-center text-sm" style={{ color: "var(--s-failed)" }}>
             {create.error.message}
           </span>
         )}

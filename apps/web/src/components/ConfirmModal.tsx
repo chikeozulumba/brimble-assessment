@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { IconAlertCircle, IconStop } from "./icons";
 
 interface Props {
   title: string;
@@ -17,60 +18,68 @@ export function ConfirmModal({ title, message, confirmLabel, danger = true, onCo
     return () => document.removeEventListener("keydown", handler);
   }, [onCancel]);
 
-  const confirmBg     = danger ? "rgba(251,113,133,0.12)" : "var(--accent-dim)";
-  const confirmColor  = danger ? "#fb7185" : "var(--accent)";
-  const confirmBorder = danger ? "rgba(251,113,133,0.30)" : "var(--accent-glow)";
-  const confirmHover  = danger ? "rgba(251,113,133,0.22)" : "rgba(61,220,132,0.18)";
-
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ background: "rgba(7,7,14,0.82)" }}
+      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-lg overflow-hidden animate-slide-down"
-        style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
+        className="w-full max-w-sm rounded-xl overflow-hidden animate-slide-down shadow-lg"
+        style={{
+          background: "linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-md)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Icon strip */}
-        <div className="px-5 pt-5 pb-4 flex gap-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <div
-            className="w-9 h-9 rounded flex items-center justify-center shrink-0"
-            style={{ background: danger ? "rgba(251,113,133,0.10)" : "var(--accent-dim)" }}
-          >
-            {danger ? (
-              <svg className="w-4 h-4" style={{ color: "#fb7185" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" style={{ color: "var(--accent)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" />
-              </svg>
-            )}
-          </div>
-          <div>
-            <h2 className="text-xs font-mono font-semibold" style={{ color: "var(--text)" }}>{title}</h2>
-            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-2)" }}>{message}</p>
+        <div className="px-5 pt-5 pb-5">
+          <div className="flex gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
+              style={{
+                background: danger ? "rgba(220,38,38,0.08)" : "var(--raised-2)",
+                borderColor: danger ? "rgba(220,38,38,0.2)" : "var(--border)",
+                color: danger ? "#dc2626" : "var(--text-2)",
+              }}
+              aria-hidden
+            >
+              {danger ? (
+                <IconAlertCircle className="w-5 h-5" strokeWidth={2} />
+              ) : (
+                <IconStop className="w-5 h-5" strokeWidth={2} />
+              )}
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
+                {title}
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-2)" }}>
+                {message}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-2 px-5 py-4">
+        <div className="flex gap-2 px-5 pb-5">
           <button
+            type="button"
             onClick={onCancel}
-            className="flex-1 px-3 py-2 rounded text-xs font-mono font-medium transition-colors"
-            style={{ background: "var(--raised)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-2)"; }}
+            className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--raised-2)]"
+            style={{ background: "transparent", color: "var(--text-2)", borderColor: "var(--border-2)" }}
           >
-            cancel
+            Cancel
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="flex-1 px-3 py-2 rounded text-xs font-mono font-semibold transition-colors"
-            style={{ background: confirmBg, color: confirmColor, border: `1px solid ${confirmBorder}` }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = confirmHover; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = confirmBg; }}
+            className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-95"
+            style={{
+              background: danger ? "linear-gradient(180deg, #ef4444 0%, #dc2626 100%)" : "var(--accent)",
+              color: "#ffffff",
+              border: "none",
+              boxShadow: danger ? "0 2px 8px rgba(220,38,38,0.35)" : "var(--shadow-xs)",
+            }}
           >
             {confirmLabel}
           </button>

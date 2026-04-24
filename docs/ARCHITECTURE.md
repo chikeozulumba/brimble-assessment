@@ -18,8 +18,9 @@ Caddy :8080                  (single ingress)
 
 ### `caddy` — Ingress
 - Caddy 2 with admin API enabled on port 2019
-- Bootstrap `Caddyfile` defines static routes for `/api` and `/`
-- At runtime, the `api` service adds `/apps/<slug>/*` routes via `POST /config/apps/http/servers/srv0/routes`
+- Bootstrap `Caddyfile` defines static routes for `/api` and `/`, and a fallback `404` for `/apps/*` until routes exist
+- At runtime, the `api` service prepends `/apps/<slug>/*` reverse_proxy routes via the admin API (`PATCH …/srv0/routes`)
+- **Restart:** Caddy’s JSON route table is ephemeral. On API startup, `reconcileCaddyRoutesFromDb()` re-registers every `running` deployment (container IP from Docker inspect + `internal_port` from Postgres) so public URLs work again after `docker compose` restarts
 - All deployed app traffic passes through Caddy; containers never expose ports to the host
 
 ### `api` — Backend (Node 20 + Hono)

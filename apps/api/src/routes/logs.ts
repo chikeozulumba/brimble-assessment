@@ -6,6 +6,9 @@ import { deployments } from '../db/schema.js';
 import { broker } from '../logs/broker.js';
 import { readLogFile } from '../logs/reader.js';
 
+/** Deployment is finished; stop SSE after replay / tail. */
+const TERMINAL_STATUSES = new Set(['failed', 'stopped']);
+
 export const logsRoute = new Hono();
 
 logsRoute.get('/:id/logs', async (c) => {
@@ -58,36 +61,35 @@ logsRoute.get('/:id/logs/stream', (c) => {
       return;
     }
 
-    // 2b. Pipeline done — check deployment state
-    const [current] = await db.select().from(deployments).where(eq(deployments.id, id));
-    if (current?.status !== 'running') {
-      await stream.writeSSE({ event: 'done', data: '{}' });
-      return;
-    }
-
-    // 2c. Container is running — tail the log file for new lines written by tailLogs
+    // 2b. Broker inactive — tail DB + log file through pending/build/deploy/running until failed/stopped
     let lastId = history.at(-1)?.id ?? 0;
+    let lastStatusSent: string | null = null;
     let aborted = false;
     stream.onAbort(() => { aborted = true; });
 
     while (!aborted) {
-      await new Promise((r) => setTimeout(r, 1000));
-      if (aborted) break;
-
       const [live] = await db.select().from(deployments).where(eq(deployments.id, id));
-      if (!live?.logPath) break;
+      if (!live) break;
 
-      const newLines = await readLogFile(id, live.logPath, lastId);
-      for (const log of newLines) {
-        await stream.writeSSE({ event: 'log', data: JSON.stringify(log) });
-        lastId = log.id;
+      if (live.status !== lastStatusSent) {
+        await stream.writeSSE({ event: 'status', data: JSON.stringify({ status: live.status }) });
+        lastStatusSent = live.status;
       }
 
-      if (live.status !== 'running') {
-        await stream.writeSSE({ event: 'status', data: JSON.stringify({ status: live.status }) });
+      if (live.logPath) {
+        const newLines = await readLogFile(id, live.logPath, lastId);
+        for (const log of newLines) {
+          await stream.writeSSE({ event: 'log', data: JSON.stringify(log) });
+          lastId = log.id;
+        }
+      }
+
+      if (TERMINAL_STATUSES.has(live.status)) {
         await stream.writeSSE({ event: 'done', data: '{}' });
         break;
       }
+
+      await new Promise((r) => setTimeout(r, 1000));
     }
   });
 });

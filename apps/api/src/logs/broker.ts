@@ -13,7 +13,7 @@ class LogBroker {
   private emitters = new Map<string, EventEmitter>();
   private counters = new Map<string, number>();
 
-  subscribe(deploymentId: string): EventEmitter {
+  private getOrCreateEmitter(deploymentId: string): EventEmitter {
     let e = this.emitters.get(deploymentId);
     if (!e) {
       e = new EventEmitter();
@@ -23,17 +23,21 @@ class LogBroker {
     return e;
   }
 
+  subscribe(deploymentId: string): EventEmitter {
+    return this.getOrCreateEmitter(deploymentId);
+  }
+
   publish(deploymentId: string, stream: 'stdout' | 'stderr' | 'system', line: string): void {
     const ts = new Date().toISOString();
     const id = (this.counters.get(deploymentId) ?? 0) + 1;
     this.counters.set(deploymentId, id);
 
     logWriter.writeLine(deploymentId, stream, line, ts);
-    this.emitters.get(deploymentId)?.emit('log', { id, deploymentId, ts, stream, line } satisfies LogEntry);
+    this.getOrCreateEmitter(deploymentId).emit('log', { id, deploymentId, ts, stream, line } satisfies LogEntry);
   }
 
   publishStatus(deploymentId: string, status: string): void {
-    this.emitters.get(deploymentId)?.emit('status', { status });
+    this.getOrCreateEmitter(deploymentId).emit('status', { status });
   }
 
   isActive(deploymentId: string): boolean {

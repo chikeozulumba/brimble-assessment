@@ -55,7 +55,6 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     const message = err?.message ?? String(err);
     broker.publish(deploymentId, 'system', `Pipeline failed: ${message}`);
     await setStatus(deploymentId, 'failed', { errorMessage: message });
-  } finally {
     broker.close(deploymentId);
   }
 }
@@ -63,6 +62,8 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
 export async function teardownDeployment(deploymentId: string) {
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, deploymentId));
   if (!dep) return;
+
+  broker.close(deploymentId);
 
   if (dep.containerId) {
     await stopAndRemoveContainer(dep.containerId);

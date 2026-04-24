@@ -3,6 +3,27 @@ import { broker } from '../logs/broker.js';
 
 const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
+/**
+ * IP of a running container on `network` (used after API/Caddy restart to re-register edge routes).
+ * Returns null if the container is missing, not running, or not attached to the network.
+ */
+export async function getContainerInternalIp(containerId: string, network: string): Promise<string | null> {
+  try {
+    const container = docker.getContainer(containerId);
+    const info = await container.inspect();
+    if (!info.State.Running) return null;
+    const nets = info.NetworkSettings.Networks;
+    const net = nets[network] ?? Object.values(nets)[0];
+    const ip = net?.IPAddress?.trim();
+    return ip || null;
+  } catch (err: unknown) {
+    const code = (err as { statusCode?: number })?.statusCode;
+    if (code === 404) return null;
+    console.warn(`[docker] inspect ${containerId.slice(0, 12)}…:`, (err as Error)?.message ?? err);
+    return null;
+  }
+}
+
 /** e.g. localhost:5000/brimble-abc:latest — host Docker must pull after BuildKit push. */
 function looksLikeRegistryImageRef(image: string): boolean {
   const i = image.indexOf('/');

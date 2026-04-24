@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,28 +6,34 @@
 
 /* ── Design tokens ────────────────────────────────────────────────── */
 :root {
-  --base:         #07070e;
-  --surface:      #0d0d1c;
-  --raised:       #111128;
-  --raised-2:     #161632;
-  --border:       #1a1a30;
-  --border-2:     #252545;
-  --accent:       #3ddc84;
-  --accent-dim:   rgba(61, 220, 132, 0.10);
-  --accent-glow:  rgba(61, 220, 132, 0.22);
-  --text:         #c8c8e8;
-  --text-2:       #58587a;
-  --text-3:       #30304a;
+  --base:        #f5f5f5;
+  --surface:     #ffffff;
+  --raised:      #fafafa;
+  --raised-2:    #f0f0f0;
+  --border:      #e5e5e5;
+  --border-2:    #d4d4d4;
 
-  --s-pending:    #818cf8;
-  --s-building:   #fbbf24;
-  --s-deploying:  #38bdf8;
-  --s-running:    #3ddc84;
-  --s-failed:     #fb7185;
-  --s-stopped:    #2e2e48;
+  --accent:      #111111;
+  --accent-dim:  rgba(17,17,17,0.05);
+  --accent-glow: rgba(17,17,17,0.10);
 
-  --radius:       6px;
-  --radius-lg:    10px;
+  --text:        #111111;
+  --text-2:      #737373;
+  --text-3:      #a3a3a3;
+
+  --s-pending:   #7c3aed;
+  --s-building:  #d97706;
+  --s-deploying: #0284c7;
+  --s-running:   #16a34a;
+  --s-failed:    #dc2626;
+  --s-stopped:   #d4d4d4;
+
+  --shadow-xs:   0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-sm:   0 1px 3px rgba(17, 17, 17, 0.06), 0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-md:   0 4px 12px rgba(17, 17, 17, 0.07), 0 2px 4px rgba(17, 17, 17, 0.04);
+  --shadow-card: 0 2px 8px rgba(17, 17, 17, 0.06), 0 0 0 1px rgba(17, 17, 17, 0.03);
+  --shadow-card-hover: 0 8px 24px rgba(17, 17, 17, 0.08), 0 2px 8px rgba(17, 17, 17, 0.05);
+  --ring-focus:  0 0 0 3px var(--accent-glow);
 }
 
 /* ── Base reset ───────────────────────────────────────────────────── */
@@ -38,55 +44,36 @@ html { -webkit-font-smoothing: antialiased; }
 body {
   margin: 0;
   background: var(--base);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -40%, rgba(17, 17, 17, 0.045), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(124, 58, 237, 0.04), transparent 45%);
   color: var(--text);
-  font-family: 'DM Sans', system-ui, sans-serif;
-}
-
-/* ── Dot-grid background ──────────────────────────────────────────── */
-.dot-grid {
-  background-image: radial-gradient(circle, var(--border-2) 1px, transparent 1px);
-  background-size: 24px 24px;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 /* ── Accordion ────────────────────────────────────────────────────── */
 .collapsible {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.30s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .collapsible.open { grid-template-rows: 1fr; }
 .collapsible > * { overflow: hidden; }
 
-/* ── Card stagger entrance ────────────────────────────────────────── */
+/* ── Card entrance ────────────────────────────────────────────────── */
 @keyframes card-in {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .card-enter {
-  animation: card-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* ── Terminal scanline overlay ────────────────────────────────────── */
-.terminal-scan::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.08) 2px,
-    rgba(0,0,0,0.08) 4px
-  );
-  pointer-events: none;
-  border-radius: inherit;
+  animation: card-in 0.22s ease both;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
 /* ── Focus ring ───────────────────────────────────────────────────── */
 *:focus-visible {
@@ -96,6 +83,44 @@ body {
 
 /* ── Selection ────────────────────────────────────────────────────── */
 ::selection {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: #e5e5e5;
+  color: var(--text);
+}
+
+/* ── LED pulse ────────────────────────────────────────────────────── */
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.animate-led-pulse { animation: led-pulse 2s ease-in-out infinite; }
+
+/* ── Slide down ───────────────────────────────────────────────────── */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down { animation: slide-down 0.18s ease both; }
+
+/* ── Surfaces ─────────────────────────────────────────────────────── */
+.surface-panel {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+.surface-panel-elevated {
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.surface-panel-elevated:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-2);
+}
+
+/* ── Header chrome ────────────────────────────────────────────────── */
+.app-header-sheen {
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: saturate(1.2) blur(8px);
 }
