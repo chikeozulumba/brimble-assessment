@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconAlertCircle, IconStop } from "./icons";
 
@@ -7,11 +7,21 @@ interface Props {
   message: string;
   confirmLabel: string;
   danger?: boolean;
+  /** When set, shown in the header circle instead of the default alert/stop icon. */
+  decorativeIcon?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmModal({ title, message, confirmLabel, danger = true, onConfirm, onCancel }: Props) {
+export function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  danger = true,
+  decorativeIcon,
+  onConfirm,
+  onCancel,
+}: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
     document.addEventListener("keydown", handler);
@@ -44,10 +54,12 @@ export function ConfirmModal({ title, message, confirmLabel, danger = true, onCo
               }}
               aria-hidden
             >
-              {danger ? (
-                <IconAlertCircle className="w-5 h-5" strokeWidth={2} />
-              ) : (
-                <IconStop className="w-5 h-5" strokeWidth={2} />
+              {decorativeIcon ?? (
+                danger ? (
+                  <IconAlertCircle className="w-5 h-5" strokeWidth={2} />
+                ) : (
+                  <IconStop className="w-5 h-5" strokeWidth={2} />
+                )
               )}
             </span>
             <div className="min-w-0">

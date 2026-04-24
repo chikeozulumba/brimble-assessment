@@ -41,7 +41,16 @@ const BASE = '/api';
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j?.error && typeof j.error === 'string') msg = j.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
   return res.json();
 }
 
@@ -104,6 +113,23 @@ export function useStopDeployment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deployments'] });
       qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
+  });
+}
+
+/** Same deployment row: tear down leftovers, reset fields, re-run pipeline with original source, slug, and env. */
+export function useStartDeployment() {
+  const qc = useQueryClient();
+  return useMutation<Deployment, Error, string>({
+    mutationFn: (id) =>
+      apiFetch(`/deployments/${id}/start`, {
+        method: 'POST',
+      }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', id] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+      qc.invalidateQueries({ queryKey: ['logs', id] });
     },
   });
 }

@@ -96,6 +96,21 @@ export function IconCalendar(props: IconProps) {
   );
 }
 
+export function IconPlay(props: IconProps) {
+  const p = base(props);
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...p}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 5v14l11-7-11-7z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
 export function IconStop(props: IconProps) {
   const p = base(props);
   return (

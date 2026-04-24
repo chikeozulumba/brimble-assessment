@@ -8,6 +8,7 @@ import {
   useDeleteDeployment,
   useDeployments,
   useRedeployDeployment,
+  useStartDeployment,
   useStopDeployment,
 } from "../api/client";
 import { ConfirmModal } from "./ConfirmModal";
@@ -20,6 +21,7 @@ import {
   IconGitBranch,
   IconInbox,
   IconLayoutGrid,
+  IconPlay,
   IconRefresh,
   IconStop,
   IconTrash,
@@ -174,7 +176,7 @@ function FilterChipIcon({
 /* ── Types ──────────────────────────────────────────────────────────── */
 
 type PendingAction =
-  | { type: "stop" | "delete"; deploymentId: string }
+  | { type: "stop" | "delete" | "start"; deploymentId: string }
   | { type: "batch-stop" | "batch-delete"; ids: string[] };
 
 /* ── Small components ───────────────────────────────────────────────── */
@@ -216,7 +218,7 @@ function Btn({
 }: {
   onClick: () => void;
   disabled?: boolean;
-  variant?: "default" | "warn" | "danger";
+  variant?: "default" | "warn" | "danger" | "go";
   icon?: ReactNode;
   children: React.ReactNode;
 }) {
@@ -241,6 +243,13 @@ function Btn({
       border: "transparent",
       hoverBg: "rgba(220,38,38,0.06)",
       hoverColor: "#dc2626",
+    },
+    go: {
+      color: "#16a34a",
+      bg: "transparent",
+      border: "transparent",
+      hoverBg: "rgba(22,163,74,0.08)",
+      hoverColor: "#15803d",
     },
   }[variant];
 
@@ -314,6 +323,7 @@ export function DeploymentList({
 }) {
   const { data: deployments, isLoading } = useDeployments();
   const stopDep = useStopDeployment();
+  const startDep = useStartDeployment();
   const deleteDep = useDeleteDeployment();
   const redeploy = useRedeployDeployment();
   const batchStop = useBatchStopDeployments();
@@ -414,17 +424,29 @@ export function DeploymentList({
     message: string;
     confirmLabel: string;
     danger?: boolean;
+    decorativeIcon?: ReactNode;
   };
   const modalCfg: ModalCfg | null = pendingAction
-    ? pendingAction.type === "stop"
+    ? pendingAction.type === "start"
       ? {
-          title: "Stop deployment",
+          title: "Start deployment",
           message:
-            "The container will be stopped and its route removed. The record is kept.",
-          confirmLabel: "Stop",
+            "Any leftover container and route for this deployment will be removed, then the pipeline runs again using the same Git URL, slug, and environment variables.",
+          confirmLabel: "Start",
           danger: false,
+          decorativeIcon: (
+            <IconPlay className="w-5 h-5" strokeWidth={0} style={{ color: "#16a34a" }} />
+          ),
         }
-      : pendingAction.type === "delete"
+      : pendingAction.type === "stop"
+        ? {
+            title: "Stop deployment",
+            message:
+              "The container will be stopped and its route removed. The record is kept.",
+            confirmLabel: "Stop",
+            danger: false,
+          }
+        : pendingAction.type === "delete"
         ? {
             title: "Delete deployment",
             message:
@@ -451,7 +473,15 @@ export function DeploymentList({
     if (!pendingAction) return;
     const a = pendingAction;
     setPendingAction(null);
-    if (a.type === "stop")
+    if (a.type === "start")
+      startDep.mutate(a.deploymentId, {
+        onSuccess: () =>
+          toast.success("Deployment started", {
+            description: "Same slug, source, and environment — pipeline is running.",
+          }),
+        onError: (e) => toast.error(e.message),
+      });
+    else if (a.type === "stop")
       stopDep.mutate(a.deploymentId, {
         onSuccess: () => toast.success("Deployment stopped"),
       });
@@ -475,7 +505,8 @@ export function DeploymentList({
       });
   };
 
-  const isBatchBusy = batchStop.isPending || batchDelete.isPending;
+  const isBatchBusy =
+    batchStop.isPending || batchDelete.isPending || startDep.isPending;
 
   return (
     <div className="space-y-3">
@@ -631,6 +662,7 @@ export function DeploymentList({
         {filtered.map((dep: Deployment, idx: number) => {
           const isExpanded = expandedId === dep.id;
           const isStopped = dep.status === "stopped";
+          const canStart = dep.status === "stopped" || dep.status === "failed";
           const isSelected = selectedIds.has(dep.id);
           const sColor = S_COLOR[dep.status] ?? "#a3a3a3";
 
@@ -740,6 +772,16 @@ export function DeploymentList({
                   className="flex items-center gap-1 shrink-0"
                   onClick={(e) => e.stopPropagation()}
                 >
+                  <Btn
+                    variant="go"
+                    disabled={startDep.isPending || !canStart}
+                    icon={<IconPlay className="w-3.5 h-3.5" />}
+                    onClick={() =>
+                      setPendingAction({ type: "start", deploymentId: dep.id })
+                    }
+                  >
+                    Start
+                  </Btn>
                   <Btn
                     disabled={
                       redeploy.isPending && redeploy.variables?.id === dep.id
@@ -950,6 +992,7 @@ export function DeploymentList({
           message={modalCfg.message}
           confirmLabel={modalCfg.confirmLabel}
           danger={modalCfg.danger}
+          decorativeIcon={modalCfg.decorativeIcon}
           onConfirm={handleConfirm}
           onCancel={() => setPendingAction(null)}
         />

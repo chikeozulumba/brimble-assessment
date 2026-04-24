@@ -108,6 +108,48 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
   return c.json(enrich(dep), 201);
 });
 
+/** Tear down runtime resources, clear operational columns, and enqueue the pipeline again on the same row (same id, slug, source, envVars). */
+deploymentsRoute.post('/:id/start', async (c) => {
+  const id = c.req.param('id');
+  const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
+  if (!dep) return c.json({ error: 'not found' }, 404);
+
+  if (!['stopped', 'failed'].includes(dep.status)) {
+    return c.json(
+      { error: 'Can only start deployments that are stopped or failed. Stop a running deployment first if you need to restart it.' },
+      400,
+    );
+  }
+
+  if (isDeploymentPipelineRunning(id)) {
+    return c.json({ error: 'A pipeline is already running for this deployment' }, 409);
+  }
+
+  cancelQueuedDeployment(id);
+  await teardownDeployment(id);
+
+  const initialStatus = canStartBuildWithoutWaiting() ? 'pending' : 'queued';
+
+  await db
+    .update(deployments)
+    .set({
+      status: initialStatus,
+      imageTag: null,
+      containerId: null,
+      internalPort: null,
+      publicUrl: null,
+      errorMessage: null,
+      logPath: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(deployments.id, id));
+
+  enqueueDeploymentPipeline(id);
+
+  const [updated] = await db.select().from(deployments).where(eq(deployments.id, id));
+  return c.json(enrich(updated!));
+});
+
 deploymentsRoute.post('/:id/stop', async (c) => {
   const id = c.req.param('id');
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
