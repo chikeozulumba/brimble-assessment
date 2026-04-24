@@ -1,11 +1,11 @@
-import { EventEmitter } from 'events';
-import { logWriter } from './writer.js';
+import { EventEmitter } from "events";
+import { logWriter } from "./writer.js";
 
 export interface LogEntry {
   id: number;
   deploymentId: string;
   ts: string;
-  stream: 'stdout' | 'stderr' | 'system';
+  stream: "stdout" | "stderr" | "system";
   line: string;
 }
 
@@ -27,17 +27,27 @@ class LogBroker {
     return this.getOrCreateEmitter(deploymentId);
   }
 
-  publish(deploymentId: string, stream: 'stdout' | 'stderr' | 'system', line: string): void {
+  publish(
+    deploymentId: string,
+    stream: "stdout" | "stderr" | "system",
+    line: string,
+  ): void {
     const ts = new Date().toISOString();
     const id = (this.counters.get(deploymentId) ?? 0) + 1;
     this.counters.set(deploymentId, id);
 
     logWriter.writeLine(deploymentId, stream, line, ts);
-    this.getOrCreateEmitter(deploymentId).emit('log', { id, deploymentId, ts, stream, line } satisfies LogEntry);
+    this.getOrCreateEmitter(deploymentId).emit("log", {
+      id,
+      deploymentId,
+      ts,
+      stream,
+      line,
+    } satisfies LogEntry);
   }
 
   publishStatus(deploymentId: string, status: string): void {
-    this.getOrCreateEmitter(deploymentId).emit('status', { status });
+    this.getOrCreateEmitter(deploymentId).emit("status", { status });
   }
 
   isActive(deploymentId: string): boolean {
@@ -45,10 +55,9 @@ class LogBroker {
   }
 
   close(deploymentId: string): void {
-    this.emitters.get(deploymentId)?.emit('done');
+    this.emitters.get(deploymentId)?.emit("done");
     this.emitters.delete(deploymentId);
     this.counters.delete(deploymentId);
-    // Do not close the log writer here — tailLogs may still be appending app output.
   }
 }
 

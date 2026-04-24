@@ -1,4 +1,4 @@
-# Brimble Feedback
+# Bimbo take-home — platform feedback
 
 Honest notes from deploying to Brimble while building this take-home.
 
@@ -33,7 +33,7 @@ The current implementation reads `ExposedPorts` from the Docker image config and
 
 - `railpack build` producing a runnable OCI image with zero Dockerfile — genuinely impressive for a Node app. No configuration needed.
 - Caddy's admin API for dynamic routing is elegant once the route object schema clicks. No config file reloads, no process signals.
-- The `brimble_apps` named Docker network making container-to-Caddy routing work by IP is clean.
+- The `bimbo_apps` named Docker network making container-to-Caddy routing work by IP is clean.
 
 ---
 

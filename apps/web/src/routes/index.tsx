@@ -96,7 +96,7 @@ export function IndexPage() {
               className="text-sm font-semibold tracking-tight leading-none"
               style={{ color: "var(--text)" }}
             >
-              brimble
+              bimbo
             </span>
             <span className="text-[11px] leading-none" style={{ color: "var(--text-3)" }}>
               lightweight deploy control

@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:5000:5000"
-    networks: [ brimble_apps ]
+    networks: [ bimbo_apps ]
     volumes:
       - registry_data:/var/lib/registry
     healthcheck:
@@ -27,7 +27,7 @@ services:
       ]
     volumes:
       - ./buildkitd.toml:/etc/buildkit/buildkitd.toml:ro
-    networks: [ brimble_apps ]
+    networks: [ bimbo_apps ]
     healthcheck:
       test:
         [
@@ -52,16 +52,16 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
-    networks: [ brimble_apps ]
+    networks: [ bimbo_apps ]
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
-      DATABASE_URL: postgres://brimble:brimble@db:5432/brimble
+      DATABASE_URL: postgres://bimbo:bimbo@db:5432/bimbo
       CADDY_ADMIN_URL: http://caddy:2019
-      APPS_NETWORK: brimble_apps
+      APPS_NETWORK: bimbo_apps
       PUBLIC_BASE_URL: http://localhost:8080
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       BUILDKIT_HOST: tcp://buildkit:1234
@@ -69,10 +69,10 @@ services:
       REGISTRY_RUN_HOST: localhost:5000
       RAILPACK_FRONTEND: ghcr.io/railwayapp/railpack-frontend:v0.23.0
       RAILPACK_VERBOSE: ${RAILPACK_VERBOSE:-}
-      LOGS_DIR: /tmp/brimble/logs
+      LOGS_DIR: /tmp/bimbo/logs
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - brimble_work:/tmp/brimble
+      - bimbo_work:/tmp/bimbo
     depends_on:
       registry:
         condition: service_healthy
@@ -82,37 +82,37 @@ services:
         condition: service_healthy
       caddy:
         condition: service_started
-    networks: [ brimble_apps ]
+    networks: [ bimbo_apps ]
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
-    networks: [ brimble_apps ]
+    networks: [ bimbo_apps ]
 
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: brimble
-      POSTGRES_PASSWORD: brimble
-      POSTGRES_DB: brimble
+      POSTGRES_USER: bimbo
+      POSTGRES_PASSWORD: bimbo
+      POSTGRES_DB: bimbo
     volumes:
-      - brimble_db:/var/lib/postgresql/data
-    networks: [ brimble_apps ]
+      - bimbo_db:/var/lib/postgresql/data
+    networks: [ bimbo_apps ]
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U brimble" ]
+      test: [ "CMD-SHELL", "pg_isready -U bimbo" ]
       interval: 5s
       timeout: 5s
       retries: 10
 
 networks:
-  brimble_apps:
-    name: brimble_apps
+  bimbo_apps:
+    name: bimbo_apps
 
 volumes:
   caddy_data:
   caddy_config:
-  brimble_db:
-  brimble_work:
+  bimbo_db:
+  bimbo_work:
   registry_data:

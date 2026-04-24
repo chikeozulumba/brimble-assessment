@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN pnpm install --filter @brimble/web --frozen-lockfile
+RUN pnpm install --filter @bimbo/web --frozen-lockfile
 
 COPY apps/web ./apps/web
 

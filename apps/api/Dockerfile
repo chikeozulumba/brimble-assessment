@@ -29,7 +29,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/package.json
 
-RUN pnpm install --filter @brimble/api --frozen-lockfile
+RUN pnpm install --filter @bimbo/api --frozen-lockfile
 
 COPY apps/api ./apps/api
 

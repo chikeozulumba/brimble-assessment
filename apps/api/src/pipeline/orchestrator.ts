@@ -19,7 +19,7 @@ async function setStatus(id: string, status: string, extra: Record<string, unkno
 }
 
 export async function runPipeline(deploymentId: string, slug: string, source: string, envVars: Record<string, string> = {}) {
-  const srcPath = join('/tmp/brimble', deploymentId, 'src');
+  const srcPath = join('/tmp/bimbo', deploymentId, 'src');
   const logPath = logWriter.getPath(deploymentId);
 
   await db.update(deployments)
@@ -36,7 +36,7 @@ export async function runPipeline(deploymentId: string, slug: string, source: st
     await cloneRepo(deploymentId, source, srcPath);
 
     // 2. Railpack + BuildKit
-    const imageTag = `brimble-${slug}:latest`;
+    const imageTag = `bimbo-${slug}:latest`;
     const runImage = await buildWithRailpack(deploymentId, srcPath, imageTag);
     await db.update(deployments).set({ imageTag: runImage, updatedAt: new Date() }).where(eq(deployments.id, deploymentId));
 
