@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# ── Build (Vite static export) ─────────────────────────────────────────
+FROM node:20-alpine AS builder
 
 RUN npm install -g pnpm@9
 
@@ -13,6 +14,14 @@ COPY apps/web ./apps/web
 
 WORKDIR /app/apps/web
 
-EXPOSE 5173
+RUN pnpm build
 
-CMD ["pnpm", "dev"]
+# ── Serve static assets ──────────────────────────────────────────────────
+FROM nginx:1.27-alpine AS runner
+
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

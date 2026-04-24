@@ -14,6 +14,6 @@
     respond "deployment not found" 404
   }
   handle {
-    reverse_proxy web:5173
+    reverse_proxy web:80
   }
 }

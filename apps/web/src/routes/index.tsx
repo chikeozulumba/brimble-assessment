@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { useDeployments } from "../api/client";
+import { useDeploymentQueueSummary, useDeployments } from "../api/client";
 import { DeployForm } from "../components/DeployForm";
 import { DeploymentList } from "../components/DeploymentList";
 import {
@@ -14,6 +14,7 @@ import {
 const S_COLOR: Record<string, string> = {
   running: "#16a34a",
   building: "#d97706",
+  queued: "#6366f1",
   failed: "#dc2626",
 };
 
@@ -57,13 +58,13 @@ function StatChip({
 export function IndexPage() {
   const [newDepId, setNewDepId] = useState<string | undefined>();
   const { data: deployments = [] } = useDeployments();
+  const { data: queueSum } = useDeploymentQueueSummary();
 
   const counts = {
     total: deployments.length,
     running: deployments.filter((d) => d.status === "running").length,
-    building: deployments.filter((d) =>
-      ["building", "deploying", "pending"].includes(d.status),
-    ).length,
+    building: deployments.filter((d) => ["building", "deploying"].includes(d.status)).length,
+    queued: deployments.filter((d) => d.status === "queued").length,
     failed: deployments.filter((d) => d.status === "failed").length,
   };
 
@@ -124,12 +125,39 @@ export function IndexPage() {
               )}
               {counts.building > 0 && (
                 <StatChip
-                  label="in progress"
+                  label="building"
                   count={counts.building}
                   color={S_COLOR.building}
                   pulse
                   icon={<IconWrench className="w-3.5 h-3.5" strokeWidth={2} />}
                 />
+              )}
+              {counts.queued > 0 && (
+                <StatChip
+                  label="in queue"
+                  count={counts.queued}
+                  color={S_COLOR.queued}
+                  pulse
+                  icon={
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                    </svg>
+                  }
+                />
+              )}
+              {queueSum && (queueSum.waitingCount > 0 || queueSum.activeCount > 0) && (
+                <span
+                  className="hidden md:inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums border"
+                  style={{
+                    color: "var(--text-2)",
+                    borderColor: "var(--border)",
+                    background: "var(--raised-2)",
+                  }}
+                  title="Concurrent pipelines (clone → deploy). Extra deployments wait in FIFO order."
+                >
+                  Slots {queueSum.activeCount}/{queueSum.maxConcurrent}
+                  {queueSum.waitingCount > 0 ? ` · ${queueSum.waitingCount} waiting` : ""}
+                </span>
               )}
               {counts.failed > 0 && (
                 <StatChip

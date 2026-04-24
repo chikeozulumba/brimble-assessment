@@ -11,7 +11,7 @@ Browser
 Caddy :8080                  (single ingress)
   ├── /api/*    → api:3000
   ├── /apps/*   → deployed containers (dynamic routes via admin API)
-  └── /*        → web:5173
+  └── /*        → web:80 (nginx, static `vite build` output)
 ```
 
 ## Services
@@ -26,14 +26,16 @@ Caddy :8080                  (single ingress)
 ### `api` — Backend (Node 20 + Hono)
 - Receives deploy requests, orchestrates the pipeline, streams logs over SSE
 - Mounts `/var/run/docker.sock` so it can drive the host Docker daemon
-- Pipeline state machine: `pending → building → deploying → running | failed`
+- **Build queue:** at most **2** concurrent `runPipeline` runs (clone → build → deploy). New deployments are inserted as `queued`, then start in FIFO order when a slot frees. `GET /api/deployments/queue/summary` exposes live slot usage; list/detail responses include `queuePosition` / `pipelineSlotHeld` for UI
+- On startup, `resumeStaleQueuedDeployments()` re-enqueues any `queued` or legacy `pending` rows
+- Pipeline state machine: `queued → building → deploying → running | failed` (legacy `pending` is still accepted)
 - In-memory `LogBroker` (EventEmitter per deployment) fans out to SSE subscribers and writes to Postgres
 
 ### `web` — Frontend (Vite + React)
 - Single-page app with TanStack Router (search param `?deployment=<id>` drives log panel)
 - TanStack Query polls deployments list every 3s as safety net
 - `EventSource` connects to `/api/deployments/:id/logs/stream` for live logs
-- Served by Vite dev server in Docker (the only hand-written Dockerfile for our own apps)
+- Docker image: multi-stage build (`pnpm build`), static files served by **nginx** on port 80; local dev still uses `pnpm dev` (Vite) with `/api` proxy
 
 ### `db` — Postgres 16
 - Two tables: `deployments` and `deployment_logs`

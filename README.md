@@ -23,7 +23,7 @@ Browser
 Caddy ─────────────────────────────────────
   ├── /api/*         → api:3000  (Hono)
   ├── /apps/<slug>/* → deployed containers (dynamic Caddy routes)
-  └── /*             → web:5173  (Vite + React)
+  └── /*             → web:80  (nginx, static Vite build)
 
 api → Postgres (state + log persistence)
 api → Docker socket (Railpack builds, container lifecycle)
@@ -73,7 +73,7 @@ The `sample-app/` in this repo is a minimal Node HTTP server. Push it to a publi
 
 ## What I'd rip out
 
-- The Vite dev server as the production web server — replace with a proper Nginx or Caddy static file serve after `vite build`
+- Production web image runs **nginx** serving `vite build` output (see `apps/web/Dockerfile` + `apps/web/nginx.conf`)
 - `nanoid` as a slug generator — `crypto.randomUUID().slice(0,8)` is enough
 
 ## Rough time spent

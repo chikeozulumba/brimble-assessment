@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useDeployment, LogEntry } from '../api/client';
 import { IconActivity, IconMaximize2, IconTerminal } from './icons';
 import { LogModal } from './LogModal';
@@ -26,8 +26,8 @@ export function LogStream({ deploymentId }: Props) {
   const [connected, setConnected]   = useState(false);
   const [done, setDone]             = useState(false);
   const [showModal, setShowModal]   = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const esRef     = useRef<EventSource | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const esRef                = useRef<EventSource | null>(null);
 
   const connect = useCallback(() => {
     esRef.current?.close();
@@ -62,13 +62,16 @@ export function LogStream({ deploymentId }: Props) {
     return () => esRef.current?.close();
   }, [connect]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  /** Keep tail visible inside the terminal only — avoid `scrollIntoView`, which scrolls the page. */
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [logs]);
 
   const status = liveStatus ?? dep?.status ?? '…';
   /** Pipeline or container still active (matches API terminal: failed, stopped). */
-  const inProgress = ['pending', 'building', 'deploying', 'running'].includes(String(status));
+  const inProgress = ['pending', 'queued', 'building', 'deploying', 'running'].includes(String(status));
   const streamClosed = done && status === 'running';
 
   return (
@@ -122,7 +125,8 @@ export function LogStream({ deploymentId }: Props) {
 
       {/* Terminal */}
       <div
-        className="flex-1 overflow-y-auto rounded-xl p-4 font-mono text-[11px] leading-5 min-h-[260px] max-h-[420px] shadow-inner"
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto rounded-xl p-4 font-mono text-[11px] leading-5 min-h-[260px] max-h-[420px] shadow-inner overscroll-y-contain"
         style={{
           background: "linear-gradient(180deg, #141414 0%, #0d0d0d 100%)",
           border: "1px solid #262626",
@@ -155,7 +159,6 @@ export function LogStream({ deploymentId }: Props) {
             <span className="break-all whitespace-pre-wrap" style={{ color: "#d4d4d4" }}>{log.line}</span>
           </div>
         ))}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

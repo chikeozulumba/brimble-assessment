@@ -13,6 +13,18 @@ export interface Deployment {
   envVars: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
+  /** 1-based wait position when status is `queued` and waiting for a build slot. */
+  queuePosition?: number | null;
+  /** True while this deployment holds one of the concurrent pipeline workers (clone→deploy). */
+  pipelineSlotHeld?: boolean;
+}
+
+export interface DeploymentQueueSummary {
+  maxConcurrent: number;
+  activeCount: number;
+  activeIds: string[];
+  waitingIds: string[];
+  waitingCount: number;
 }
 
 export interface LogEntry {
@@ -35,6 +47,18 @@ export function useDeployments() {
   return useQuery<Deployment[]>({
     queryKey: ['deployments'],
     queryFn: () => apiFetch('/deployments'),
+  });
+}
+
+export function useDeploymentQueueSummary() {
+  return useQuery<DeploymentQueueSummary>({
+    queryKey: ['deployments', 'queue-summary'],
+    queryFn: () => apiFetch('/deployments/queue/summary'),
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      if (!d) return 2500;
+      return d.waitingCount > 0 || d.activeCount > 0 ? 2000 : false;
+    },
   });
 }
 
@@ -64,7 +88,10 @@ export function useCreateDeployment() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }
 
@@ -72,7 +99,10 @@ export function useStopDeployment() {
   const qc = useQueryClient();
   return useMutation<unknown, Error, string>({
     mutationFn: (id) => apiFetch(`/deployments/${id}/stop`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }
 
@@ -80,7 +110,10 @@ export function useDeleteDeployment() {
   const qc = useQueryClient();
   return useMutation<unknown, Error, string>({
     mutationFn: (id) => apiFetch(`/deployments/${id}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }
 
@@ -88,7 +121,10 @@ export function useRedeployDeployment() {
   const qc = useQueryClient();
   return useMutation<Deployment, Error, string>({
     mutationFn: (id) => apiFetch(`/deployments/${id}/redeploy`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }
 
@@ -106,7 +142,10 @@ export function useBatchStopDeployments() {
       if (succeeded === 0) throw new Error(`All ${ids.length} stop operations failed`);
       return { succeeded, failed };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }
 
@@ -122,6 +161,9 @@ export function useBatchDeleteDeployments() {
       if (succeeded === 0) throw new Error(`All ${ids.length} delete operations failed`);
       return { succeeded, failed };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deployments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deployments'] });
+      qc.invalidateQueries({ queryKey: ['deployments', 'queue-summary'] });
+    },
   });
 }

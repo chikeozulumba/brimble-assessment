@@ -29,6 +29,7 @@ import { LogStream } from "./LogStream";
 
 const S_COLOR: Record<string, string> = {
   pending: "#7c3aed",
+  queued: "#6366f1",
   building: "#d97706",
   deploying: "#0284c7",
   running: "#16a34a",
@@ -36,9 +37,16 @@ const S_COLOR: Record<string, string> = {
   stopped: "#a3a3a3",
 };
 
-const S_ACTIVE = new Set(["pending", "building", "deploying", "running"]);
+const S_ACTIVE = new Set([
+  "pending",
+  "queued",
+  "building",
+  "deploying",
+  "running",
+]);
 const ALL_STATUSES = [
   "pending",
+  "queued",
   "building",
   "deploying",
   "running",
@@ -46,21 +54,57 @@ const ALL_STATUSES = [
   "stopped",
 ] as const;
 
-function FilterChipIcon({ status }: { status: (typeof ALL_STATUSES)[number] | null }) {
+function FilterChipIcon({
+  status,
+}: {
+  status: (typeof ALL_STATUSES)[number] | null;
+}) {
   const c = "w-3.5 h-3.5 shrink-0";
-  if (status === null) return <IconFilter className={c} style={{ color: "var(--text-3)" }} />;
+  if (status === null)
+    return <IconFilter className={c} style={{ color: "var(--text-3)" }} />;
   const color = S_COLOR[status] ?? "#a3a3a3";
   switch (status) {
     case "pending":
       return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
           <circle cx="12" cy="12" r="10" />
           <circle cx="12" cy="12" r="2" fill={color} stroke="none" />
         </svg>
       );
+    case "queued":
+      return (
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
+          />
+        </svg>
+      );
     case "building":
       return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -70,7 +114,14 @@ function FilterChipIcon({ status }: { status: (typeof ALL_STATUSES)[number] | nu
       );
     case "deploying":
       return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -80,14 +131,36 @@ function FilterChipIcon({ status }: { status: (typeof ALL_STATUSES)[number] | nu
       );
     case "running":
       return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M22 12h-4l-3 9L9 3l-3 9H2"
+          />
         </svg>
       );
     case "failed":
       return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg
+          className={c}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
       );
     case "stopped":
@@ -281,7 +354,8 @@ export function DeploymentList({
         className="flex flex-col items-center justify-center py-16 px-6 rounded-xl border border-dashed text-center surface-panel-elevated"
         style={{
           borderColor: "var(--border-2)",
-          background: "linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%)",
+          background:
+            "linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%)",
           boxShadow: "var(--shadow-sm)",
         }}
       >
@@ -299,9 +373,12 @@ export function DeploymentList({
         <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
           No deployments yet
         </p>
-        <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: "var(--text-2)" }}>
-          Deploy a Git repository from the panel above. Live status and logs appear here as soon as the
-          pipeline starts.
+        <p
+          className="text-xs mt-1.5 max-w-xs leading-relaxed"
+          style={{ color: "var(--text-2)" }}
+        >
+          Deploy a Git repository from the panel above. Live status and logs
+          appear here as soon as the pipeline starts.
         </p>
       </div>
     );
@@ -404,7 +481,8 @@ export function DeploymentList({
       <div
         className="flex items-center gap-1.5 flex-wrap rounded-xl border px-2 py-2"
         style={{
-          background: "linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%)",
+          background:
+            "linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%)",
           borderColor: "var(--border)",
           boxShadow: "var(--shadow-xs)",
         }}
@@ -437,12 +515,22 @@ export function DeploymentList({
         })}
 
         <span
-          className="ml-auto text-xs font-medium tabular-nums px-1"
+          className="ml-auto text-xs font-medium tabular-nums px-1 text-right leading-snug"
           style={{ color: "var(--text-2)" }}
         >
           {filtered.length}
-          {deployments.length !== filtered.length ? ` / ${deployments.length}` : ""}{" "}
-          <span style={{ color: "var(--text-3)", fontWeight: 500 }}>deployments</span>
+          {deployments.length !== filtered.length
+            ? ` / ${deployments.length}`
+            : ""}{" "}
+          <span style={{ color: "var(--text-3)", fontWeight: 500 }}>
+            deployments
+          </span>
+          <span
+            className="block text-[10px] font-normal mt-0.5"
+            style={{ color: "var(--text-3)" }}
+          >
+            Max 2 pipelines at once; extras queue in order.
+          </span>
         </span>
       </div>
 
@@ -451,15 +539,22 @@ export function DeploymentList({
         <div
           className="animate-slide-down flex items-center gap-2 px-4 py-3 rounded-xl border"
           style={{
-            background: "linear-gradient(90deg, var(--raised) 0%, var(--surface) 55%)",
+            background:
+              "linear-gradient(90deg, var(--raised) 0%, var(--surface) 55%)",
             borderColor: "var(--border)",
             boxShadow: "var(--shadow-sm), 0 0 0 1px rgba(217,119,6,0.08)",
           }}
         >
-          <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>
+          <span
+            className="text-xs font-semibold"
+            style={{ color: "var(--text)" }}
+          >
             {selectedInView.length} selected
           </span>
-          <div className="w-px h-4 mx-0.5" style={{ background: "var(--border-2)" }} />
+          <div
+            className="w-px h-4 mx-0.5"
+            style={{ background: "var(--border-2)" }}
+          />
           <Btn
             variant="warn"
             icon={<IconStop className="w-3.5 h-3.5" />}
@@ -560,11 +655,32 @@ export function DeploymentList({
 
                 {/* Status label */}
                 <span
-                  className="text-xs w-[68px] shrink-0 font-medium"
+                  className="text-xs w-[72px] shrink-0 font-medium lowercase"
                   style={{ color: sColor }}
                 >
                   {dep.status}
                 </span>
+
+                {(dep.status === "queued" || dep.status === "pending") &&
+                  (dep.pipelineSlotHeld || dep.queuePosition != null) && (
+                    <span
+                      className="text-[10px] font-semibold tabular-nums shrink-0 px-1.5 py-0.5 rounded-md border hidden sm:inline-block max-w-[5.5rem] truncate text-center"
+                      style={{
+                        borderColor: "rgba(99,102,241,0.35)",
+                        color: "#6366f1",
+                        background: "rgba(99,102,241,0.08)",
+                      }}
+                      title={
+                        dep.pipelineSlotHeld
+                          ? "Build slot acquired — pipeline starting"
+                          : `Waiting in build queue (position ${dep.queuePosition})`
+                      }
+                    >
+                      {dep.pipelineSlotHeld
+                        ? "Starting"
+                        : `#${dep.queuePosition}`}
+                    </span>
+                  )}
 
                 {/* Slug */}
                 <span
@@ -580,7 +696,9 @@ export function DeploymentList({
                   style={{ color: "var(--text-2)" }}
                 >
                   <IconGitBranch className="w-3.5 h-3.5 shrink-0 opacity-60" />
-                  <span className="truncate min-w-0">{dep.source.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                  <span className="truncate min-w-0">
+                    {dep.source.replace(/^https?:\/\/(www\.)?/, "")}
+                  </span>
                 </span>
 
                 {/* Date */}
@@ -662,18 +780,23 @@ export function DeploymentList({
                         className="px-5 py-4 border-b lg:border-b-0 lg:border-r"
                         style={{
                           borderColor: "var(--border)",
-                          background: "linear-gradient(180deg, var(--raised) 0%, var(--surface) 100%)",
+                          background:
+                            "linear-gradient(180deg, var(--raised) 0%, var(--surface) 100%)",
                         }}
                       >
                         <p
                           className="text-xs font-semibold mb-3 inline-flex items-center gap-2"
                           style={{ color: "var(--text-2)" }}
                         >
-                          <IconLayoutGrid className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                          <IconLayoutGrid
+                            className="w-3.5 h-3.5"
+                            style={{ color: "var(--text-3)" }}
+                          />
                           Properties
                         </p>
                         <dl>
-                          <PropRow label="id">{dep.slug}</PropRow>
+                          <PropRow label="id">{dep.id}</PropRow>
+                          <PropRow label="deploymentId">{dep.slug}</PropRow>
                           <PropRow label="status">
                             <StatusBadge status={dep.status} />
                           </PropRow>
@@ -687,7 +810,9 @@ export function DeploymentList({
                               onClick={(e) => e.stopPropagation()}
                             >
                               <IconGitBranch className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-80" />
-                              <span>{dep.source.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                              <span>
+                                {dep.source.replace(/^https?:\/\/(www\.)?/, "")}
+                              </span>
                               <IconExternalLink className="w-3 h-3 shrink-0 opacity-40" />
                             </a>
                           </PropRow>
@@ -701,7 +826,9 @@ export function DeploymentList({
                                 style={{ color: "var(--s-deploying)" }}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <span className="break-all">{dep.publicUrl}</span>
+                                <span className="break-all">
+                                  {dep.publicUrl}
+                                </span>
                                 <IconExternalLink className="w-3.5 h-3.5 shrink-0 opacity-60" />
                               </a>
                             </PropRow>

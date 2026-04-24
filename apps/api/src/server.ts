@@ -5,6 +5,7 @@ import { deploymentsRoute } from './routes/deployments.js';
 import { logsRoute } from './routes/logs.js';
 import { config } from './config.js';
 import { reconcileCaddyRoutesFromDb } from './pipeline/reconcileCaddy.js';
+import { resumeStaleQueuedDeployments } from './pipeline/deploymentQueue.js';
 
 const app = new Hono();
 
@@ -18,6 +19,12 @@ app.route('/api/deployments', logsRoute);
     await reconcileCaddyRoutesFromDb();
   } catch (e) {
     console.error('[startup] Caddy route reconcile failed:', e);
+  }
+
+  try {
+    await resumeStaleQueuedDeployments();
+  } catch (e) {
+    console.error('[startup] deployment queue resume failed:', e);
   }
 
   serve({ fetch: app.fetch, port: config.port, hostname: '0.0.0.0' }, (info) => {

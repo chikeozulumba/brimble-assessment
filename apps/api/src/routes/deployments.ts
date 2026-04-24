@@ -3,13 +3,34 @@ import { eq, desc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../db/client.js';
 import { deployments } from '../db/schema.js';
-import { runPipeline, teardownDeployment } from '../pipeline/orchestrator.js';
+import { teardownDeployment } from '../pipeline/orchestrator.js';
+import {
+  cancelQueuedDeployment,
+  enqueueDeploymentPipeline,
+  getDeploymentQueueSummary,
+  getWaitingQueuePosition,
+  isDeploymentPipelineRunning,
+} from '../pipeline/deploymentQueue.js';
 
 export const deploymentsRoute = new Hono();
 
 function slug() {
   return nanoid(8).toLowerCase().replace(/[^a-z0-9]/g, 'x');
 }
+
+type DepRow = typeof deployments.$inferSelect;
+
+function enrich(dep: DepRow) {
+  return {
+    ...dep,
+    queuePosition: getWaitingQueuePosition(dep.id),
+    pipelineSlotHeld: isDeploymentPipelineRunning(dep.id),
+  };
+}
+
+deploymentsRoute.get('/queue/summary', async (c) => {
+  return c.json(getDeploymentQueueSummary());
+});
 
 deploymentsRoute.post('/', async (c) => {
   const body = await c.req.json<{ source: string; envVars?: Record<string, string> }>();
@@ -23,25 +44,25 @@ deploymentsRoute.post('/', async (c) => {
     id,
     slug: s,
     source: body.source,
-    status: 'pending',
+    status: 'queued',
     envVars,
   }).returning();
 
-  runPipeline(id, s, body.source, envVars ?? {}).catch(console.error);
+  enqueueDeploymentPipeline(id);
 
-  return c.json(dep, 201);
+  return c.json(enrich(dep), 201);
 });
 
 deploymentsRoute.get('/', async (c) => {
   const all = await db.select().from(deployments).orderBy(desc(deployments.createdAt));
-  return c.json(all);
+  return c.json(all.map(enrich));
 });
 
 deploymentsRoute.get('/:id', async (c) => {
   const id = c.req.param('id');
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
   if (!dep) return c.json({ error: 'not found' }, 404);
-  return c.json(dep);
+  return c.json(enrich(dep));
 });
 
 deploymentsRoute.post('/:id/redeploy', async (c) => {
@@ -56,13 +77,13 @@ deploymentsRoute.post('/:id/redeploy', async (c) => {
     id: newId,
     slug: s,
     source: original.source,
-    status: 'pending',
+    status: 'queued',
     envVars: original.envVars,
   }).returning();
 
-  runPipeline(newId, s, original.source, original.envVars ?? {}).catch(console.error);
+  enqueueDeploymentPipeline(newId);
 
-  return c.json(dep, 201);
+  return c.json(enrich(dep), 201);
 });
 
 deploymentsRoute.post('/:id/stop', async (c) => {
@@ -70,6 +91,7 @@ deploymentsRoute.post('/:id/stop', async (c) => {
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
   if (!dep) return c.json({ error: 'not found' }, 404);
 
+  cancelQueuedDeployment(id);
   await teardownDeployment(id);
   return c.json({ ok: true });
 });
@@ -79,6 +101,7 @@ deploymentsRoute.delete('/:id', async (c) => {
   const [dep] = await db.select().from(deployments).where(eq(deployments.id, id));
   if (!dep) return c.json({ error: 'not found' }, 404);
 
+  cancelQueuedDeployment(id);
   await teardownDeployment(id);
   await db.delete(deployments).where(eq(deployments.id, id));
   return c.json({ ok: true });

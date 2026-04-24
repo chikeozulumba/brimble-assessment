@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLogs, useDeployment, LogEntry } from '../api/client';
 import { IconCopy, IconTerminal } from './icons';
@@ -23,7 +23,7 @@ const STREAM_LABEL: Record<string, string> = {
 export function LogModal({ deploymentId, onClose }: Props) {
   const { data: dep }             = useDeployment(deploymentId);
   const { data: logs, isLoading } = useLogs(deploymentId);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -31,8 +31,10 @@ export function LogModal({ deploymentId, onClose }: Props) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  useEffect(() => {
-    if (logs?.length) bottomRef.current?.scrollIntoView();
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !logs?.length) return;
+    el.scrollTop = el.scrollHeight;
   }, [logs]);
 
   const handleCopy = () => {
@@ -113,7 +115,8 @@ export function LogModal({ deploymentId, onClose }: Props) {
 
         {/* Log body */}
         <div
-          className="flex-1 overflow-y-auto font-mono text-[11px] leading-5 p-5 space-y-0.5 shadow-inner"
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto font-mono text-[11px] leading-5 p-5 space-y-0.5 shadow-inner overscroll-y-contain"
           style={{
             background: "linear-gradient(180deg, #141414 0%, #0d0d0d 100%)",
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
@@ -145,7 +148,6 @@ export function LogModal({ deploymentId, onClose }: Props) {
               <span className="break-all whitespace-pre-wrap" style={{ color: "#d4d4d4" }}>{log.line}</span>
             </div>
           ))}
-          <div ref={bottomRef} />
         </div>
       </div>
     </div>,
